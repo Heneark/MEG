@@ -1,0 +1,16 @@
+1. Download get-pip.py
+    https://bootstrap.pypa.io/get-pip.py
+
+2. In the console, run:
+    python3 get-pip.py --prefix=~/.local/
+
+3. Edit ~/.bashrc to write:
+    export PATH=$PATH:~/.local/bin
+
+4. In the console, run:
+    pip3 install --prefix ~/.local <package>
+
+5. If a package attempts to uninstall another required package to update it, which will fail without superuser rights, run instead:
+    pip3 install --prefix ~/.local <package> <requirement>==<version>
+For example:
+    pip3 install --prefix ~/.local visbrain numpy==1.11.0 matplotlib==1.5.1
