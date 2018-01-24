@@ -44,6 +44,12 @@ Now, you should be set up both locally on the original machine and online on Git
 Using GitHub: good practices
 ----------------------------
 
+To download for the first time the repository on a new machine, do
+
+    git clone <https_link_to_github_repository>
+
+Do this only the first time, as it will download **everything**.
+
 Start every day with
 
 	cd path/to/local/folder
