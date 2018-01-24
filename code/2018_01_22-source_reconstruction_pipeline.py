@@ -18,9 +18,9 @@ from header import *
 task = 'SMEG'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
-#subjects =  ['028','030','032', '037', '040', '042']
 subjects = subjects[subjects.index('089'):]
 subjects.sort()
+#subjects =  ['028','030','032', '037', '040', '042']
 #==============================================================================
 
 
@@ -36,6 +36,13 @@ import morphing
 
 
 #preprocessing.process(tasks=[task], states=states, subjects=subjects, run_ICA=False)
+
+# ANATOMICAL RECONSTRUCTION: FREESURFER
+#==============================================================================
+# recon-all -i <sub_T1.nii> -s <sub> -all
+# # INPUT: MRI T1 raw data
+# # OUPUT in FreeSurfer SUBJECTS_DIR
+#==============================================================================
 
 #anatomy.BEM(task=task, subjects=subjects)
 
