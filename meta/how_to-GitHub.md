@@ -59,7 +59,7 @@ It will update your local files with any update made anywhere else.
 
 Whenever you edit/add a file, wherever you do it (on your professional machine, on your personal one, online on GitHub, ...), when you're done don't forget to
 
-	git commit -m "Tell about what you did."
+	git commit -am "Tell about what you did."
 	git push origin master
 
 Did you forget whether you were productive today? `git status` will remind you!
