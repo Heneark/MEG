@@ -19,6 +19,9 @@ task = 'SMEG'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 subjects = subjects[subjects.index('089'):]
+# # Last subject preprocessed: 093
+# # Future subjects list:
+#subjects = subjects[subjects.index('093')+1:]
 subjects.sort()
 #subjects =  ['028','030','032', '037', '040', '042']
 #==============================================================================
