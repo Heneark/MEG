@@ -8,6 +8,8 @@ Created on Thu Jun 22 15:16:49 2017
 #==============================================================================
 import sys
 sys.path.append("/dycog/meditation/ERC/Analyses/MEG/code/")
+import matplotlib
+matplotlib.use('Agg') #not to show BEM surfaces and save them instead
 from header import *
 #==============================================================================
 
@@ -40,6 +42,8 @@ def BEM(task, subjects=None, spacing='oct6'):
         #==============================================================================    
         # Surfaces & model      
         mne.bem.make_watershed_bem(subj, overwrite=True, show=True) # does not work with IPython
+        plt.savefig(op.join(output_path,'BEM_surfaces.png'))
+        plt.close()
         
         model = mne.make_bem_model(subj)
         mne.write_bem_surfaces(op.join(output_path, subj + '_bem_model-bem.fif'), model)
@@ -58,7 +62,7 @@ def BEM(task, subjects=None, spacing='oct6'):
         #==============================================================================
         vol = 0
         
-        src = mne.setup_source_space(subj, spacing=spacing, overwrite = True)
+        src = mne.setup_source_space(subj, spacing=spacing, n_jobs=2)
         
         #vol_src = mne.setup_volume_source_space(subj, pos=3.0, mri = '/dycog/meditation/ERC/Analyses/ANAT/T1/FreeSurfer/012/mri/brain.mgz', surface = '/dycog/meditation/ERC/Analyses/ANAT/T1/FreeSurfer/012/bem/brain.surf')
         #

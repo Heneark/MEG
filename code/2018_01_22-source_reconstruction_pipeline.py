@@ -9,6 +9,8 @@ Created on Mon Jan 22 12:30:25 2018
 #==============================================================================
 import sys
 sys.path.append("/dycog/meditation/ERC/Analyses/MEG/code/")
+import matplotlib
+matplotlib.use('Agg') #not to display figures and run all subjects at once
 from header import *
 #==============================================================================
 
@@ -19,12 +21,13 @@ task = 'SMEG'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 subjects = subjects[subjects.index('089'):]
-# # Last subject preprocessed: 093
-# # Future subjects list:
+# # Last subject preprocessed: 093
+# # Future subjects list:
 #subjects = subjects[subjects.index('093')+1:]
 subjects.sort()
-#subjects =  ['028','030','032', '037', '040', '042']
 #==============================================================================
+#subjects = subjects[subjects.index('068')+1:]
+#subjects =  ['028','030','032', '037', '040', '042']
 
 
 #PROCESSING SCRIPTS
