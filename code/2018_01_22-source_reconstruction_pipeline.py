@@ -51,8 +51,13 @@ import morphing
 
 # # Run anatomy functions in a console (does not work with IPython).
 # # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')"at the top of this script
-for sub in subjects:
+subjects = subjects[subjects.index('002')+1:]
+subjects.remove('004')
+for s,sub in enumerate(subjects):
     watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'inner_skull.surf'))
+#    watershed = True
+#    if s >= subjects.index('050'):
+#        watershed = False
     anatomy.BEM(subject=sub, watershed=watershed)
     anatomy.src_space(subject=sub)
 
