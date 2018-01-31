@@ -20,13 +20,12 @@ from header import *
 task = 'SMEG'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
-subjects = subjects[subjects.index('089'):]
+subjects.remove('064')
 # # Last subject preprocessed: 093
 # # Future subjects list:
 #subjects = subjects[subjects.index('093')+1:]
 subjects.sort()
 #==============================================================================
-#subjects = subjects[subjects.index('068')+1:]
 #subjects =  ['028','030','032', '037', '040', '042']
 
 
@@ -41,7 +40,7 @@ import morphing
 #==============================================================================
 
 
-#preprocessing.process(tasks=[task], states=states, subjects=subjects, run_ICA=False)
+#preprocessing.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================
@@ -50,7 +49,12 @@ import morphing
 # # OUPUT in FreeSurfer SUBJECTS_DIR
 #==============================================================================
 
-#anatomy.BEM(task=task, subjects=subjects)
+# # Run anatomy functions in a console (does not work with IPython).
+# # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')"at the top of this script
+for sub in subjects:
+    watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'inner_skull.surf'))
+    anatomy.BEM(subject=sub, watershed=watershed)
+    anatomy.src_space(subject=sub)
 
 #COREGISTRATION: MATLAB
 #==============================================================================

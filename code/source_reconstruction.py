@@ -17,7 +17,7 @@ sys.path.append("/dycog/meditation/ERC/Analyses/MEG/code/")
 from header import *
 #==============================================================================
 
-def src_rec(task, states, subjects=None, spacing='oct6', compute_fwd=True, compute_inv=True, compute_stc=True, covariance=['raw', 'epochs'], method="dSPM"):
+def src_rec(task, states, subjects=None, spacing='oct6', bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, covariance=['raw', 'epochs'], method="dSPM"):
     """Output (Source_Rec directory): *'-fwd.fif' (forward model), *'-inv.fif' (inverse model), *'-rh.stc' (right hemisphere source estimates), and *'-lh.stc' (left hemisphere).
     Parameters:
         states: list of the states.
@@ -34,6 +34,7 @@ def src_rec(task, states, subjects=None, spacing='oct6', compute_fwd=True, compu
     #number of EOG components to remove
     NUM = [None]
     
+    src_type = 'surface'# or 'volume' or 'mixed'
     vol = 0
     
     for subj in subjects:
@@ -43,8 +44,9 @@ def src_rec(task, states, subjects=None, spacing='oct6', compute_fwd=True, compu
         stc_path = op.join(sr_path, 'STC')
         evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', get_id(subj))
         ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', get_id(subj))
-        src = mne.read_source_spaces(op.join(sr_path, subj +'_source_space_' + spacing + '-src.fif'))
-        bem_sol = mne.read_bem_solution(op.join(sr_path, subj + '_bem_solution-sol.fif'))
+        FS_path = op.join(os.environ['SUBJECTS_DIR'], subj)
+        src = mne.read_source_spaces(op.join(FS_path, 'src', '{}_{}_{}-src.fif'.format(subj, spacing, src_type)))
+        bem_sol = mne.read_bem_solution(op.join(FS_path, 'bem', '{}_{}_bem_solution.fif'.format(subj, bem_spacing)))
         
         if not op.exists(stc_path):
             os.makedirs(stc_path)
@@ -136,6 +138,7 @@ def src_rec(task, states, subjects=None, spacing='oct6', compute_fwd=True, compu
                                     snr = 3.
                                     lambda2 = 1. / snr ** 2
                                     stc = apply_inverse(evoked, inv, lambda2, method=method, pick_ori=None)
+                                    stc.subject = subj
                                     stc.save(op.join(stc_path, subj + '_' + task + ('_vol' if vol else '') + '_' + tag + '_{}-{}'.format(l_freq,h_freq) + t + s + c + a))
     
                         

@@ -8,7 +8,7 @@ Created on Wed Aug  2 18:02:35 2017
 import sys, os
 import os.path as op
 import glob
-import joblib
+import joblib# allows for parallel processing (not mandatory)
 import locale
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
@@ -18,7 +18,7 @@ import numpy as np
 from numpy.linalg import inv
 import pandas as pd
 import scipy
-import sklearn
+import sklearn# improves performance for e.g. anatomy.py
 from termcolor import colored
 import time
 

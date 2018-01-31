@@ -26,8 +26,7 @@ def average(task, subjects=None):
         subject_from = subj
         subject_to = 'fsaverage'
         
-        sr_path = op.join(Analysis_path, task, 'meg', 'Source_Rec', get_id(subj))
-        stc_path = op.join(sr_path, 'STC')
+        stc_path = op.join(Analysis_path, task, 'meg', 'Source_Rec', get_id(subj), 'STC')
         fnames = glob.glob(op.join(stc_path, '*-rh.stc'))
         
         for fname in fnames:

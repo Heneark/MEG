@@ -16,65 +16,65 @@ from header import *
 #mne.set_log_level(verbose = 'DEBUG')
 
 
-def BEM(task, subjects=None, spacing='oct6'):
-    """Output (Source_Rec directory): *'-bem.fif' (model), *'-sol.fif' (solution), and *'-src.fif' (source space).
+def BEM(subject, spacing='ico4', watershed=True):
+    """
+    Creates bem/watershed/ with surface files in FreeSurfer's SUBJECTS_DIR directory.
     Parameters:
-        subjects: list of the subjects, default to all subjects available for the task.
-        spacing: 'oct5', 'ico4', 'oct6', or 'ico5' according to mne source_space."""
-        
-    if not subjects:
-        subjects = get_subjlist(task)
+        spacing: BEM surface downsampling = 'ico3', 'ico4' (default), 'ico5', or None for full model (no subsampling).
+    Output:
+        SUBJECTS_DIR/<subject>/bem/<subject>_<spacing>_bem_solution.fif
+    """
     
-    for subj in subjects:
+    output_path = op.join(os.environ['SUBJECTS_DIR'], subject, 'bem')
     
-    
-        # PATHS 
-        #==============================================================================    
-        data_path = op.join(Raw_data_path, task, 'meg')
-        output_path = op.join(Analysis_path, task, 'meg', 'Source_Rec', get_id(subj))
-        
-        if not op.exists(output_path):
-            os.makedirs(output_path)
-        #==============================================================================
-        
-                
-        # BEM MODEL AND SOLUTION        
-        #==============================================================================    
-        # Surfaces & model      
-        mne.bem.make_watershed_bem(subj, overwrite=True, show=True) # does not work with IPython
+    # BEM surfaces
+    if watershed:
+        mne.bem.make_watershed_bem(subject, overwrite=True, show=True) # does not work with IPython
         plt.savefig(op.join(output_path,'BEM_surfaces.png'))
         plt.close()
-        
-        model = mne.make_bem_model(subj)
-        mne.write_bem_surfaces(op.join(output_path, subj + '_bem_model-bem.fif'), model)
-        
-        # Solution
-        bem_sol = mne.make_bem_solution(model)
-        mne.write_bem_solution(op.join(output_path, subj + '_bem_solution-sol.fif'), bem_sol)
-        
-        # Visualize results
-        #mne.viz.plot_bem(subject=subj, src=None, orientation='coronal')
-        #==============================================================================
-        
-        
-        
-        # SOURCE SPACE
-        #==============================================================================
-        vol = 0
-        
-        src = mne.setup_source_space(subj, spacing=spacing, n_jobs=2)
-        
-        #vol_src = mne.setup_volume_source_space(subj, pos=3.0, mri = '/dycog/meditation/ERC/Analyses/ANAT/T1/FreeSurfer/012/mri/brain.mgz', surface = '/dycog/meditation/ERC/Analyses/ANAT/T1/FreeSurfer/012/bem/brain.surf')
-        #
-        #src += vol_src
-        
-        mne.write_source_spaces(op.join(output_path, subj +'_source_space_' + spacing + '-src.fif'), src, overwrite=True)
-        #==============================================================================
-        
-        
-        #==============================================================================
-        #==============================================================================
-        # # COREGISTRATION USING mne_analyze / mne.gui.coregistration() / $ mne coreg
-        #==============================================================================
-        #==============================================================================
     
+    # BEM model
+    surfaces = mne.make_bem_model(subject, ico = (int(spacing[3]) if spacing else None))
+    
+    # BEM solution
+    bem_sol = mne.make_bem_solution(surfaces)
+    mne.write_bem_solution(op.join(output_path, '{sub}_{ico}_bem_solution.fif'.format(sub=subject, ico=(spacing if spacing else 'full'))), bem_sol)
+    
+    # Visualize results
+    #mne.viz.plot_bem(subject=subject, src=None, orientation='coronal')
+
+
+def src_space(subject, spacing='ico4', pos=6.2):
+    """
+    Parameters:
+        spacing: 'oct5', 'ico4' (default), 'oct6' (default of mne.setup_source_space), 'ico5', or 'all' (no subdivision of the source space).
+        pos: distance (in mm) between sources (arranged as a grid).
+    Output:
+        SUBJECTS_DIR/<subject>/src/<subject>_<spacing>_surface-src.fif
+        SUBJECTS_DIR/<subject>/src/<subject>_<pos>_volume-src.fif
+        SUBJECTS_DIR/<subject>/src/<subject>_<spacing>_<pos>_mixed-src.fif
+    
+    MNE naming conventions: all source space files should end with -src.fif or -src.fif.gz.
+    """
+    
+    output_path = op.join(os.environ['SUBJECTS_DIR'], subject, 'src')
+    mri_path = op.join(os.environ['SUBJECTS_DIR'], subject, 'mri', 'brain.mgz')
+    surf_path = op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', 'brain.surf')
+    
+    if not op.exists(output_path):
+        os.makedirs(output_path)
+    
+    # Surface source space
+    src_surf = mne.setup_source_space(subject, spacing=spacing, n_jobs=2)
+    src_surf.subject = subject
+    mne.write_source_spaces(op.join(output_path, '{}_{}_surface-src.fif'.format(subject, spacing)), src_surf, overwrite=True)
+    
+    # Volume source space
+    src_vol = mne.setup_volume_source_space(subject, pos=pos, mri=mri_path, surface=surf_path)
+    src_vol.subject = subject
+    mne.write_source_spaces(op.join(output_path, '{}_{}_volume-src.fif'.format(subject, pos)), src_vol, overwrite=True)
+    
+    # Mixed source space
+    src_mix = src_surf + src_vol
+    src_mix.subject = subject
+    mne.write_source_spaces(op.join(output_path, '{}_{}_{}_mixed-src.fif'.format(subject, spacing, pos)), src_mix, overwrite=True)
