@@ -20,10 +20,15 @@ from header import *
 task = 'SMEG'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
-subjects.remove('064')
+
+reject = ['019', '021', '064']
+for sub in reject:
+    subjects.remove(sub)
+
 # # Last subject preprocessed: 093
 # # Future subjects list:
 #subjects = subjects[subjects.index('093')+1:]
+
 subjects.sort()
 #==============================================================================
 #subjects =  ['028','030','032', '037', '040', '042']
@@ -51,11 +56,6 @@ import morphing
 
 # # Run anatomy functions in a console (does not work with IPython).
 # # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')"at the top of this script
-reject = ['004', '010', '014', '018', '019', '021']
-for sub in reject:
-    subjects.remove(sub)
-
-subjects = subjects[subjects.index('007')+1:]
 for s,sub in enumerate(subjects):
     watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'inner_skull.surf'))
 #    watershed = True

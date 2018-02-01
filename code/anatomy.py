@@ -75,6 +75,6 @@ def src_space(subject, spacing='ico4', pos=6.2):
     mne.write_source_spaces(op.join(output_path, '{}_{}_volume-src.fif'.format(subject, pos)), src_vol, overwrite=True)
     
     # Mixed source space
-    src_mix = src_surf + src_vol
-    src_mix.subject = subject
-    mne.write_source_spaces(op.join(output_path, '{}_{}_{}_mixed-src.fif'.format(subject, spacing, pos)), src_mix, overwrite=True)
+#    src_mix = src_surf + src_vol
+#    src_mix.subject = subject
+#    mne.write_source_spaces(op.join(output_path, '{}_{}_{}_mixed-src.fif'.format(subject, spacing, pos)), src_mix, overwrite=True)
