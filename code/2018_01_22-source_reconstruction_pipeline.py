@@ -36,7 +36,7 @@ subjects.sort()
 
 #PROCESSING SCRIPTS
 #==============================================================================
-import preprocessing
+import preproc
 import anatomy
 import HPI_update
 import covariance_matrix
@@ -45,7 +45,7 @@ import morphing
 #==============================================================================
 
 
-#preprocessing.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
+#preproc.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================

@@ -11,7 +11,117 @@ from header import *
 #==============================================================================
 
 
-def filtering_parameters(do=True, low_pass=1, high_pass=40, notch=np.arange(50,251,50), resample=200, window='hann'):
+def run_ica(subject, task, state, block, raw=None, n_components=0.975, method='fastica', ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
+    """
+    Fit ICA on raw MEG data.
+    Output:
+        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-ica.fif'
+    Log:
+        'Analyses/<task>/meg/ICA/ICA_log.tsv'
+    Parameters (see mne.preprocessing.ICA):
+        raw: raw data to fit ICA on. If None (default), will be loaded according to previous parameters.
+        n_components: number of components used for ICA decomposition
+        method: the ICA method to use
+        ECG_channel: channel(s) corresponding to the ECG
+        EOG_channel: channel(s) corresponding to the EOG
+    """
+    # Load data
+    data_path = op.join(Raw_data_path, task, 'meg')
+    raw_fname = op.join(data_path, op.join(* get_rawpath(subject, task=task)) + block + '.ds')
+    if not raw:
+        raw = mne.io.read_raw_ctf(raw_fname, preload=True)
+    
+    # ICA path
+    ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
+    if not op.exists(ICA_path):
+        os.makedirs(ICA_path)
+    
+    # ICA log
+    ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
+    if not op.isfile(ICA_log):
+        with open(ICA_log, 'w') as fid:
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','ncomp_ECG','ncomp_EOG'))
+    
+    # Filter for ICA
+    raw.filter(l_freq=1, h_freq=40, fir_design='firwin')
+    
+    # Fit ICA
+    ica = ICA(n_components=n_components, method=method) #create ICA object
+    ica.fit(raw, decim=6) #decimate: 200Hz is more than enough for ICA; saves time
+    
+    # Detect ECG and EOG arrtifacts
+    ica.find_bads_ecg(raw)
+    ica.exclude.extend(ica.labels_['ecg'])
+    ica.find_bads_eog(raw)
+    ica.exclude.extend(ica.labels_['eog'])
+    
+    # Save ICA
+    ica.save(op.join(ICA_path, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+    
+    # Write ICA log
+    with open(ICA_log, 'a') as fid:
+        fid.write("{}\t{}\t{}\t{}\t{:.3f}\t{:d}\t{:d}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,len(ecg_inds),len(eog_inds)))
+
+
+def process0(subject, task, state, block, raw=None, ica=None, notch=np.arange(50,251,50), high_pass=0.1, low_pass=None, rejection={mag:2500e-15}, epoching={name:'Cardiac',tmin:-.5,tmax:.8,baseline:(-.4,-.3)}):
+    """
+    Run preprocessing to create epochs and evoked response.
+    Output:
+        'Analyses/<task>/meg/Epochs/<subject>/<epoch_name>-<state>_<block>-epo.fif'
+        'Analyses/<task>/meg/Evoked/<subject>/<epoch_name>-<state>_<block>-ave.fif'
+    Parameters (see mne.filter):
+        raw: raw data to process. If None (default), will be loaded according to previous parameters.
+        ica: ICA object. If None (default), will be loaded according to previous parameters.
+            /!\ In this case, make sure you don't have several ICA models with e.g. different number of components. /!\
+        low_pass: frequency (in Hz) for low-pass filtering
+        high_pass: frequency (in Hz) for high-pass filtering
+        notch: frequency (in Hz) or list of frequencies to notch filter
+        rejection: epoch rejection threshold (default to 2500 fT for magnetometers)
+        epoching: dictionary of epoching parameters. Keys (see mne.Epochs): name (only 'Cardiac' is supported yet), tmin, tmax, baseline
+    """
+    # Load data
+    data_path = op.join(Raw_data_path, task, 'meg')
+    raw_fname = op.join(data_path, op.join(* get_rawpath(subject, task=task)) + block + '.ds')
+    if not raw:
+        raw = mne.io.read_raw_ctf(raw_fname, preload=True)
+    
+    #Load ICA
+    ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
+    ICA_file = glob.glob(op.join(ICA_path, '{}*{}*-ica.fif'.format(state, block, n_components)))[0]
+    if not ica:
+        ica = read_ica(ICA_file)
+    
+    # Save paths
+    epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
+    epochs_file = op.join(epochs_path, '{}-{}_{}-epo.fif'.format(epoching['name'], state, block))
+    evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
+    evoked_file = op.join(evoked_path, '{}-{}_{}-ave.fif'.format(epoching['name'], state, block))
+    
+    # Filter
+    raw.notch_filter(notch, n_jobs=len(notch))
+    raw.filter(l_freq=high_pass, h_freq=low_pass, fir_design='firwin')
+    
+    # Apply ICA
+    ica.apply(raw)
+    
+    # Epoch
+    if epoching['name'] == 'Cardiac':
+        epochs = create_ecg_epochs(raw, reject=rejection, tmin=epoching['tmin'], tmax=epoching['tmax'], baseline=epoching['baseline'], ch_name=ECG_channel[0])
+    
+    # Rejection
+#    rejected = epochs.copy()
+    epochs.drop_bad()
+#    rejected.drop_bad(reject=None, flat=rejection)
+    
+    # Save epochs
+    epochs.save(epochs_file)
+    
+    # Save evoked
+    evoked = epochs.average()
+    evoked.save(evoked_file)
+
+
+def filtering_parameters(do=True, low_pass=40, high_pass=1, notch=np.arange(50,251,50), resample=200, window='hann'):
     """
     Creates a dictionary of the filtering parameters to be passed to process().
     If do is not True, skip other parameters: no filtering will be applied.
@@ -61,8 +171,7 @@ def epoching_parameters(do=True, name='Cardiac', function=mne.preprocessing.crea
     
     return epoch_param
 
-#ICA : toujours sur bandpass (1,40)
-##--> appliquer sur evoked
+
 def ICA_parameters(do=True, n_components=0.975, method='fastica', ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
     """
     Creates a dictionary of the ICA parameters to be passed to process().
