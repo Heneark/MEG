@@ -1,4 +1,3 @@
-﻿.
 id	name	protocol	date	block	task	state	include
 002	chala	MEDIT	20160602	01	SMEG	RS	1
 002	chala	MEDIT	20160602	02	SMEG	FA	1
@@ -399,7 +398,6 @@ pilot_savar	ar	mimosa	20170607	09	MIMOSA	RS	0
 093	perge	mimosa	20171211	15	MIMOSA	OM	1
 093	perge	mimosa	20171211	16	MIMOSA	OM	1
 093	perge	mimosa	20171211	17	MIMOSA	OM	1
-
 071	benan	mimosa	20180131	01	SMEG	RS	1
 071	benan	mimosa	20180131	02	SMEG	OM	1
 071	benan	mimosa	20180131	03	MIMOSA	OM	1
@@ -417,4 +415,3 @@ pilot_savar	ar	mimosa	20170607	09	MIMOSA	RS	0
 071	benan	mimosa	20180131	16	MIMOSA	FA	1
 071	benan	mimosa	20180131	17	MIMOSA	FA	1
 071	benan	mimosa	20180131	18	MIMOSA	FA	1
-
