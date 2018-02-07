@@ -169,7 +169,7 @@ def process0(subject, task, state, block, raw=None, n_components=.975, ica=None,
     evoked.save(evoked_file)
     
     drop_log = op.join(epochs_path, 'drop_log.txt')
-    with open(ICA_log, 'a') as fid:
+    with open(drop_log, 'a') as fid:
         fid.write('{} {} epochs dropped (rejection threshold = {})'.format(epochs_file.split('/')[-2:], len(np.array(test.drop_log)[np.where(test.drop_log)]), rejection['mag']))
 
 

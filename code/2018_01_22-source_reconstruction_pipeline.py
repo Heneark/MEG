@@ -9,8 +9,8 @@ Created on Mon Jan 22 12:30:25 2018
 #==============================================================================
 import sys
 sys.path.append("/dycog/meditation/ERC/Analyses/MEG/code/")
-#import matplotlib
-#matplotlib.use('Agg') #not to display figures and run all subjects at once
+import matplotlib
+matplotlib.use('Agg') #not to display figures and run all subjects at once
 from header import *
 #==============================================================================
 
@@ -50,7 +50,7 @@ for sub in subjects:
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):
 #            preproc.run_ica(sub, task, state, blk)
-#            preproc.process0(sub, task, state, blk)
+            preproc.process0(sub, task, state, blk)
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================
