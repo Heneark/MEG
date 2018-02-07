@@ -9,8 +9,8 @@ Created on Mon Jan 22 12:30:25 2018
 #==============================================================================
 import sys
 sys.path.append("/dycog/meditation/ERC/Analyses/MEG/code/")
-import matplotlib
-matplotlib.use('Agg') #not to display figures and run all subjects at once
+#import matplotlib
+#matplotlib.use('Agg') #not to display figures and run all subjects at once
 from header import *
 #==============================================================================
 
@@ -21,13 +21,13 @@ task = 'SMEG'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-reject = ['019', '021', '064']
+reject = ['071']
 for sub in reject:
     subjects.remove(sub)
 
 # # Last subject preprocessed: 093
 # # Future subjects list:
-subjects = subjects[subjects.index('093')+1:]
+subjects = subjects[subjects.index('054')+1:]
 
 subjects.sort()
 #==============================================================================
@@ -48,9 +48,9 @@ import morphing
 #preproc.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
 for sub in subjects:
     for state in states:
-        for blk in get_blocks(subject, task=task, state=state):
-            preproc.run_ica(sub, task, state, blk)
-            preproc.process0(sub, task, state, blk)
+        for blk in get_blocks(sub, task=task, state=state):
+#            preproc.run_ica(sub, task, state, blk)
+#            preproc.process0(sub, task, state, blk)
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================

@@ -29,7 +29,7 @@ locale.setlocale(locale.LC_ALL, "en_US.utf8")
 import mne
 from mne.time_frequency import psd_welch
 from mne.preprocessing import ICA
-from mne.preprocessing import create_eog_epochs, create_ecg_epochs
+from mne.preprocessing import create_eog_epochs, create_ecg_epochs, read_ica
 from mne.event import make_fixed_length_events
 from mne.minimum_norm import (make_inverse_operator, apply_inverse, write_inverse_operator, read_inverse_operator)
 
