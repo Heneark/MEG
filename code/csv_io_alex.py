@@ -13,7 +13,7 @@ from termcolor import colored
 #==============================================================================
 def get_subjlist(task=None, date=None, pathBase = '/dycog/meditation/ERC/Analyses'):
      
-     ld = pd.read_csv(op.join(pathBase, 'MEG', 'meta', 'listdata.csv'), sep = '\t', dtype = str, header = 1)
+     ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
      ld = ld[ld.include == '1']
      if task:
@@ -48,7 +48,7 @@ def get_id(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
          return subj
          
      if subj.isalpha() == True:
-         ld = pd.read_csv(op.join(pathBase, 'MEG', 'meta', 'listdata.csv'), sep = '\t', dtype = str, header = 1)
+         ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
              
          ld = ld[ld.name == subj]
          subj_id = ld['id'].iloc[0]
@@ -61,7 +61,7 @@ def get_id(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
 #==============================================================================
 def get_protocol(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
          
-     ld = pd.read_csv(op.join(pathBase, 'MEG', 'meta', 'listdata.csv'), sep = '\t', dtype = str, header = 1)
+     ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
      ld = ld[(ld.id == subj) | (ld.name == subj)]    
      
@@ -81,7 +81,7 @@ def get_protocol(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
 #==============================================================================
 def get_task(subj, block = None, protocol = None, pathBase = '/dycog/meditation/ERC/Analyses'):
          
-     ld = pd.read_csv(op.join(pathBase, 'MEG', 'meta', 'listdata.csv'), sep = '\t', dtype = str, header = 1)
+     ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
      ld = ld[(ld.id == subj) | (ld.name == subj)]
      if protocol:
@@ -99,7 +99,7 @@ def get_task(subj, block = None, protocol = None, pathBase = '/dycog/meditation/
 #==============================================================================
 def get_date(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
           
-     ld = pd.read_csv(op.join(pathBase, 'MEG', 'meta', 'listdata.csv'), sep = '\t', dtype = str, header = 1)
+     ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
      ld = ld[(ld.id == subj) | (ld.name == subj)]    
      
@@ -114,7 +114,7 @@ def get_date(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
 #==============================================================================
 def get_name(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
           
-     ld = pd.read_csv(op.join(pathBase, 'MEG', 'meta', 'listdata.csv'), sep = '\t', dtype = str, header = 1)
+     ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
      ld = ld[(ld.id == subj) | (ld.name == subj)]    
      
@@ -130,7 +130,7 @@ def get_name(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
 #==============================================================================
 def get_rawpath(subj, task=None, noise=0, NoiseBase ='/dycog/meditation/ERC/Raw data/MEG_noise', pathBase = '/dycog/meditation/ERC/Analyses'):
         
-     ld = pd.read_csv(op.join(pathBase, 'MEG', 'meta', 'listdata.csv'), sep = '\t', dtype = str, header = 1)
+     ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
 
      if subj.isdigit() == True:   
          ldsub = ld.loc[ld['id'] == subj]
@@ -165,7 +165,7 @@ def get_rawpath(subj, task=None, noise=0, NoiseBase ='/dycog/meditation/ERC/Raw 
 #==============================================================================
 def get_blocks(subj, state=None, task=None, protocol=None, pathBase = '/dycog/meditation/ERC/Analyses'):
      
-     ld = pd.read_csv(op.join(pathBase, 'MEG', 'meta', 'listdata.csv'), sep = '\t', dtype = str, header = 1)
+     ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
 
      ld = ld[(ld.id == subj) | (ld.name == subj)]
      
@@ -194,7 +194,7 @@ def get_blocks(subj, state=None, task=None, protocol=None, pathBase = '/dycog/me
 #==============================================================================
 def state_count(state, pathBase = '/dycog/meditation/ERC/Analyses'):
      
-     ld = pd.read_csv(op.join(pathBase, 'MEG', 'meta', 'listdata.csv'), sep = '\t', dtype = str, header = 1)
+     ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
  
      ld = ld[((ld.state == state) | (ld.state == state + '1') | (ld.state == state + '2') | (ld.state == state + '_postFA') | (ld.state == state + '_postOM')) & (ld.include == '1')]
      

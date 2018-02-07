@@ -27,7 +27,7 @@ for sub in reject:
 
 # # Last subject preprocessed: 093
 # # Future subjects list:
-#subjects = subjects[subjects.index('093')+1:]
+subjects = subjects[subjects.index('093')+1:]
 
 subjects.sort()
 #==============================================================================
@@ -46,6 +46,11 @@ import morphing
 
 
 #preproc.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
+for sub in subjects:
+    for state in states:
+        for blk in get_blocks(subject, task=task, state=state):
+            preproc.run_ica(sub, task, state, blk)
+            preproc.process0(sub, task, state, blk)
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================
@@ -56,13 +61,13 @@ import morphing
 
 # # Run anatomy functions in a console (does not work with IPython).
 # # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')"at the top of this script
-for s,sub in enumerate(subjects):
-    watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'inner_skull.surf'))
-#    watershed = True
-#    if s >= subjects.index('050'):
-#        watershed = False
-    anatomy.BEM(subject=sub, watershed=watershed)
-    anatomy.src_space(subject=sub)
+#for s,sub in enumerate(subjects):
+#    watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'inner_skull.surf'))
+##    watershed = True
+##    if s >= subjects.index('050'):
+##        watershed = False
+#    anatomy.BEM(subject=sub, watershed=watershed)
+#    anatomy.src_space(subject=sub)
 
 #COREGISTRATION: MATLAB
 #==============================================================================

@@ -11,7 +11,7 @@ from header import *
 #==============================================================================
 
 
-def run_ica(subject, task, state, block, raw=None, n_components=0.975, method='fastica', ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
+def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975, method='fastica', rejection=None, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
     """
     Fit ICA on raw MEG data.
     Output:
@@ -31,6 +31,8 @@ def run_ica(subject, task, state, block, raw=None, n_components=0.975, method='f
     if not raw:
         raw = mne.io.read_raw_ctf(raw_fname, preload=True)
     
+    picks_meg = mne.pick_types(raw.info, meg=True, ref_meg=False, exclude='bads')
+    
     # ICA path
     ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
     if not op.exists(ICA_path):
@@ -40,30 +42,46 @@ def run_ica(subject, task, state, block, raw=None, n_components=0.975, method='f
     ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
     if not op.isfile(ICA_log):
         with open(ICA_log, 'w') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','ncomp_ECG','ncomp_EOG'))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components', n_selected_comps,'ncomp_ECG','ncomp_EOG'))
     
     # Filter for ICA
-    raw.filter(l_freq=1, h_freq=40, fir_design='firwin')
+    raw.filter(l_freq=1, h_freq=40, fir_design='firwin', picks=picks_meg)
     
     # Fit ICA
     ica = ICA(n_components=n_components, method=method) #create ICA object
-    ica.fit(raw, decim=6) #decimate: 200Hz is more than enough for ICA; saves time
+    ica.fit(raw, reject=rejection, decim=6, picks=picks_meg) #decimate: 200Hz is more than enough for ICA, saves time
     
-    # Detect ECG and EOG arrtifacts
-    ica.find_bads_ecg(raw)
+    # Detect ECG and EOG artifacts
+    try:
+        ecg_scores = ica.find_bads_ecg(raw, ch_name=ECG_channel[0])[1]
+    except:
+        ecg_scores = ica.find_bads_ecg(raw, ch_name=ECG_channel[1])[1]
     ica.exclude.extend(ica.labels_['ecg'])
-    ica.find_bads_eog(raw)
+    
+    eog_scores = ica.find_bads_eog(raw, ch_name=EOG_channel)[1]
     ica.exclude.extend(ica.labels_['eog'])
     
+    # Plot scores
+    ica.plot_scores(ecg_scores)
+    plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_ecg.svg'.format(state, block, n_components)))
+    plt.close()
+    
+    ica.plot_scores(eog_scores)
+    plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_eog.svg'.format(state, block, n_components)))
+    plt.close()
+    
     # Save ICA
-    ica.save(op.join(ICA_path, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+    if save:
+        ica.save(op.join(ICA_path, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+    else:
+        return ica
     
     # Write ICA log
     with open(ICA_log, 'a') as fid:
-        fid.write("{}\t{}\t{}\t{}\t{:.3f}\t{:d}\t{:d}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,len(ecg_inds),len(eog_inds)))
+        fid.write("{}\t{}\t{}\t{}\t{:.3f}\t{:d}\t{:d}\t{:d}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,ica.n_components_,len(ica.labels_['ecg']),len(ica.labels_['eog'])))
 
 
-def process0(subject, task, state, block, raw=None, ica=None, notch=np.arange(50,251,50), high_pass=0.1, low_pass=None, rejection={mag:2500e-15}, epoching={name:'Cardiac',tmin:-.5,tmax:.8,baseline:(-.4,-.3)}):
+def process0(subject, task, state, block, raw=None, ica=None, check_ica=True, notch=np.arange(50,301,50), high_pass=0.1, low_pass=None, rejection=None, epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}):
     """
     Run preprocessing to create epochs and evoked response.
     Output:
@@ -85,6 +103,8 @@ def process0(subject, task, state, block, raw=None, ica=None, notch=np.arange(50
     if not raw:
         raw = mne.io.read_raw_ctf(raw_fname, preload=True)
     
+    picks = mne.pick_types(raw.info, meg=True, exclude='bads')
+    
     #Load ICA
     ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
     ICA_file = glob.glob(op.join(ICA_path, '{}*{}*-ica.fif'.format(state, block, n_components)))[0]
@@ -98,15 +118,35 @@ def process0(subject, task, state, block, raw=None, ica=None, notch=np.arange(50
     evoked_file = op.join(evoked_path, '{}-{}_{}-ave.fif'.format(epoching['name'], state, block))
     
     # Filter
-    raw.notch_filter(notch, n_jobs=len(notch))
-    raw.filter(l_freq=high_pass, h_freq=low_pass, fir_design='firwin')
+    raw.notch_filter(notch, n_jobs=len(notch), picks=picks)
+    raw.filter(l_freq=high_pass, h_freq=low_pass, fir_design='firwin', picks=picks)
+    
+    if check_ica:
+        # Visual check
+        ica.plot_overlay(raw)
+        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay.svg'.format(state, block, n_components)))
+        plt.close()
+        
+        try:
+            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[0], picks=picks)
+        except:
+            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[1], picks=picks)
+        for comp in ica.labels_['ecg']:
+            ica.plot_properties(check_ecg, picks=comp)
+            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_svg{}.png'.format(state, block, n_components, comp)))
+            plt.close()
+        check_eog = create_eog_epochs(raw, ch_name=EOG_channel, picks=picks)
+        for comp in ica.labels_['ecg']:
+            ica.plot_properties(check_eog, picks=comp)
+            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_svg{}.png'.format(state, block, n_components, comp)))
+            plt.close()
     
     # Apply ICA
     ica.apply(raw)
     
     # Epoch
     if epoching['name'] == 'Cardiac':
-        epochs = create_ecg_epochs(raw, reject=rejection, tmin=epoching['tmin'], tmax=epoching['tmax'], baseline=epoching['baseline'], ch_name=ECG_channel[0])
+        epochs = create_ecg_epochs(raw, reject=rejection, picks=picks, tmin=epoching['tmin'], tmax=epoching['tmax'], baseline=epoching['baseline'], ch_name=ECG_channel[0])
     
     # Rejection
 #    rejected = epochs.copy()
