@@ -52,9 +52,13 @@ os.environ["SUBJECTS_DIR"] = "/dycog/meditation/ERC/Analyses/ANAT/T1/FreeSurfer/
 #PATH BASES
 #==============================================================================
 try:
-    pathBase = op.dirname(op.realpath(__file__))
+    code_path = op.dirname(__file__)
+    Analysis_path = op.dirname(op.dirname(code_path))
+    pathBase = op.dirname(Analysis_path)
 except NameError:
     pathBase = '/dycog/meditation/ERC'
-Analysis_path = op.join(pathBase, 'Analyses')
+    Analysis_path = op.join(pathBase, 'Analyses')
+    code_path = op.join(Analysis_path, 'MEG', 'code')
+
 Raw_data_path = op.join(pathBase, 'Raw data')
 #==============================================================================
