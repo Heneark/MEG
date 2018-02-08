@@ -25,7 +25,7 @@ for sub in reject:
 
 # # Last subject preprocessed: 093
 # # Future subjects list:
-subjects = subjects[subjects.index('054')+1:]
+#subjects = subjects[subjects.index('054')+1:]
 
 subjects.sort()
 #==============================================================================
@@ -43,11 +43,11 @@ import morphing
 
 
 #preproc.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
-#for sub in subjects:
-#    for state in states:
-#        for blk in get_blocks(sub, task=task, state=state):
-##            preproc.run_ica(sub, task, state, blk)
-#            preproc.process0(sub, task, state, blk)
+for sub in subjects:
+    for state in states:
+        for blk in get_blocks(sub, task=task, state=state):
+#            preproc.run_ica(sub, task, state, blk)
+            preproc.process0(sub, task, state, blk)
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================

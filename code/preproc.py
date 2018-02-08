@@ -42,7 +42,7 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
     if not op.isfile(ICA_log):
         with open(ICA_log, 'w') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','n_selected_comps','ncomp_ECG','ncomp_EOG','rejection','dropped_epochs'))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','n_selected_comps','ncomp_ECG','ncomp_EOG','rejection','dropped_epochs'))
     
     # Filter for ICA
     raw.filter(l_freq=1, h_freq=40, fir_design='firwin', picks=picks_meg, n_jobs=4)
@@ -79,7 +79,7 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     
     # Write ICA log
     with open(ICA_log, 'a') as fid:
-        fid.write("{}\t{}\t{}\t{}\t{:.3f}\t{:d}\t{:d}\t{:d}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,ica.n_components_,len(ica.labels_['ecg']),len(ica.labels_['eog']),rejection,len(ica.drop_inds_)))
+        fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,ica.n_components_,len(ica.labels_['ecg']),len(ica.labels_['eog']),rejection,len(ica.drop_inds_)))
 
 
 def process0(subject, task, state, block, raw=None, n_components=.975, ica=None, check_ica=True, notch=np.arange(50,301,50), high_pass=0.1, low_pass=None, rejection={'mag':2.5e-12}, epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
