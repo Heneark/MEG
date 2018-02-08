@@ -7,8 +7,6 @@ Created on Mon Jan 22 12:30:25 2018
 
 #IMPORT PACKAGES, DEFINE ENVIRONMENT VARIABLES, CREATE PATHES
 #==============================================================================
-import sys
-sys.path.append("/dycog/meditation/ERC/Analyses/MEG/code/")
 import matplotlib
 matplotlib.use('Agg') #not to display figures and run all subjects at once
 from header import *
@@ -31,7 +29,6 @@ subjects = subjects[subjects.index('054')+1:]
 
 subjects.sort()
 #==============================================================================
-#subjects =  ['028','030','032', '037', '040', '042']
 
 
 #PROCESSING SCRIPTS
@@ -46,11 +43,11 @@ import morphing
 
 
 #preproc.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
-for sub in subjects:
-    for state in states:
-        for blk in get_blocks(sub, task=task, state=state):
-#            preproc.run_ica(sub, task, state, blk)
-            preproc.process0(sub, task, state, blk)
+#for sub in subjects:
+#    for state in states:
+#        for blk in get_blocks(sub, task=task, state=state):
+##            preproc.run_ica(sub, task, state, blk)
+#            preproc.process0(sub, task, state, blk)
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================
@@ -61,6 +58,7 @@ for sub in subjects:
 
 # # Run anatomy functions in a console (does not work with IPython).
 # # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')"at the top of this script
+#subjects = ['055', '073', '094']
 #for s,sub in enumerate(subjects):
 #    watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'inner_skull.surf'))
 ##    watershed = True

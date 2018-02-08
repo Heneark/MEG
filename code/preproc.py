@@ -4,14 +4,13 @@ Created on Wed May 17 15:22:13 2017
 
 @author: alex
 """
+#IMPORT PACKAGES, DEFINE ENVIRONMENT VARIABLES, CREATE PATHES
 #==============================================================================
-import sys
-sys.path.append("/dycog/meditation/ERC/Analyses/MEG/code/")
 from header import *
 #==============================================================================
 
 
-def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975, method='fastica', rejection={'mag':3000e-15}, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
+def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975, method='fastica', rejection={'mag':4000e-15}, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
     """
     Fit ICA on raw MEG data.
     Output:
@@ -22,7 +21,7 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
         raw: raw data to fit ICA on. If None (default), will be loaded according to previous parameters.
         n_components: number of components used for ICA decomposition
         method: the ICA method to use
-        rejection: epoch rejection threshold (default to 3000 fT for magnetometers)
+        rejection: epoch rejection threshold (default to 4000 fT for magnetometers)
         ECG_channel: channel(s) corresponding to the ECG
         EOG_channel: channel(s) corresponding to the EOG
     """
@@ -43,7 +42,7 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
     if not op.isfile(ICA_log):
         with open(ICA_log, 'w') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','n_selected_comps','ncomp_ECG','ncomp_EOG'))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','n_selected_comps','ncomp_ECG','ncomp_EOG','rejection','dropped_epochs'))
     
     # Filter for ICA
     raw.filter(l_freq=1, h_freq=40, fir_design='firwin', picks=picks_meg, n_jobs=4)
@@ -53,21 +52,22 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     ica.fit(raw, reject=rejection, decim=6, picks=picks_meg) #decimate: 200Hz is more than enough for ICA, saves time
     
     # Detect ECG and EOG artifacts
+    ica.scores_ = dict()
     try:
-        ecg_scores = ica.find_bads_ecg(raw, ch_name=ECG_channel[0], threshold=0.3)[1] #default threshold at 0.25 too low
+        ica.scores_['ecg'] = ica.find_bads_ecg(raw, ch_name=ECG_channel[0], threshold=0.3)[1] #default threshold at 0.25 too low
     except:
-        ecg_scores = ica.find_bads_ecg(raw, ch_name=ECG_channel[1], threshold=0.3)[1]
+        ica.scores_['ecg'] = ica.find_bads_ecg(raw, ch_name=ECG_channel[1], threshold=0.3)[1]
     ica.exclude.extend(ica.labels_['ecg'])
     
-    eog_scores = ica.find_bads_eog(raw, ch_name=EOG_channel)[1]
+    ica.scores_['eog'] = ica.find_bads_eog(raw, ch_name=EOG_channel)[1]
     ica.exclude.extend(ica.labels_['eog'])
     
     # Plot scores
-    ica.plot_scores(ecg_scores, exclude=ica.labels_['ecg'], title="ECG artifacts")
+    ica.plot_scores(ica.scores_['ecg'], exclude=ica.labels_['ecg'], title="ECG artifacts")
     plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_ecg.svg'.format(state, block, n_components)))
     plt.close()
     
-    ica.plot_scores(eog_scores, exclude=ica.labels_['eog'], title="EOG artifacts")
+    ica.plot_scores(ica.scores_['eog'], exclude=ica.labels_['eog'], title="EOG artifacts")
     plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_eog.svg'.format(state, block, n_components)))
     plt.close()
     
@@ -79,10 +79,10 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     
     # Write ICA log
     with open(ICA_log, 'a') as fid:
-        fid.write("{}\t{}\t{}\t{}\t{:.3f}\t{:d}\t{:d}\t{:d}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,ica.n_components_,len(ica.labels_['ecg']),len(ica.labels_['eog'])))
+        fid.write("{}\t{}\t{}\t{}\t{:.3f}\t{:d}\t{:d}\t{:d}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,ica.n_components_,len(ica.labels_['ecg']),len(ica.labels_['eog']),rejection,len(ica.drop_inds_)))
 
 
-def process0(subject, task, state, block, raw=None, n_components=.975, ica=None, check_ica=True, notch=np.arange(50,301,50), high_pass=0.1, low_pass=None, rejection={'mag':2e-12}, epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
+def process0(subject, task, state, block, raw=None, n_components=.975, ica=None, check_ica=True, notch=np.arange(50,301,50), high_pass=0.1, low_pass=None, rejection={'mag':2.5e-12}, epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
     """
     Run preprocessing to create epochs and evoked response.
     Output:
@@ -94,7 +94,7 @@ def process0(subject, task, state, block, raw=None, n_components=.975, ica=None,
         low_pass: frequency (in Hz) for low-pass filtering
         high_pass: frequency (in Hz) for high-pass filtering
         notch: frequency (in Hz) or list of frequencies to notch filter
-        rejection: epoch rejection threshold (default to 2000 fT for magnetometers)
+        rejection: epoch rejection threshold (default to 2500 fT for magnetometers)
         epoching: dictionary of epoching parameters. Keys (see mne.Epochs): name (only 'Cardiac' is supported yet), tmin, tmax, baseline
     """
     # Load data
@@ -135,15 +135,15 @@ def process0(subject, task, state, block, raw=None, n_components=.975, ica=None,
         plt.close()
         
         try:
-            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[0], picks=picks)
+            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[0], reject=rejection, picks=picks)
         except:
-            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[1], picks=picks)
+            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[1], reject=rejection, picks=picks)
         for comp in ica.labels_['ecg']:
             ica.plot_properties(check_ecg, picks=comp)
             plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_ecg{}.svg'.format(state, block, n_components, comp)))
             plt.close()
         
-        check_eog = create_eog_epochs(raw, ch_name=EOG_channel, picks=picks)
+        check_eog = create_eog_epochs(raw, ch_name=EOG_channel, reject=rejection, picks=picks)
         for comp in ica.labels_['eog']:
             ica.plot_properties(check_eog, picks=comp)
             plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_eog{}.svg'.format(state, block, n_components, comp)))
@@ -154,7 +154,10 @@ def process0(subject, task, state, block, raw=None, n_components=.975, ica=None,
     
     # Epoch
     if epoching['name'] == 'Cardiac':
-        epochs = create_ecg_epochs(raw, reject=rejection, picks=picks, tmin=epoching['tmin'], tmax=epoching['tmax'], baseline=epoching['baseline'], ch_name=ECG_channel[0])
+        try:
+            epochs = create_ecg_epochs(raw, reject=rejection, picks=picks, tmin=epoching['tmin'], tmax=epoching['tmax'], baseline=epoching['baseline'], ch_name=ECG_channel[0])
+        except:
+            epochs = create_ecg_epochs(raw, reject=rejection, picks=picks, tmin=epoching['tmin'], tmax=epoching['tmax'], baseline=epoching['baseline'], ch_name=ECG_channel[1])
     
     # Rejection
 #    rejected = epochs.copy()
@@ -168,9 +171,9 @@ def process0(subject, task, state, block, raw=None, n_components=.975, ica=None,
     evoked = epochs.average()
     evoked.save(evoked_file)
     
-    drop_log = op.join(epochs_path, 'drop_log.txt')
+    drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
     with open(drop_log, 'a') as fid:
-        fid.write('{} {} epochs dropped (rejection threshold = {})'.format(epochs_file.split('/')[-2:], len(np.array(test.drop_log)[np.where(test.drop_log)]), rejection['mag']))
+        fid.write('{} {} epochs dropped (threshold = {})\n'.format(epochs_file.split('/')[-2:], len(np.array(epochs.drop_log)[np.where(epochs.drop_log)]), rejection))
 
 
 def filtering_parameters(do=True, low_pass=40, high_pass=1, notch=np.arange(50,251,50), resample=200, window='hann'):

@@ -34,7 +34,7 @@ def BEM(subject, spacing='ico4', watershed=True):
         plt.close()
     
     # BEM model
-    surfaces = mne.make_bem_model(subject, ico = (int(spacing[3]) if spacing else None))
+    surfaces = mne.make_bem_model(subject, ico = (int(spacing[-1]) if spacing else None))
     
     # BEM solution
     bem_sol = mne.make_bem_solution(surfaces)
