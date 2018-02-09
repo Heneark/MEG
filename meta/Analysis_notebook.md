@@ -32,6 +32,15 @@ Subject 007
 
 `OM_04`: 2nd weak and noisy **EOG** component
 
+
 Subject 010
 -----------
 **drop_log**: ~200 epochs dropped
+
+`RS_01`: 2nd weak **EOG** component, around +200 ms
+
+`OM_07`: **ECG**25 has a high score but not marked for exclusion => T component
+
+
+Subject 12
+----------
