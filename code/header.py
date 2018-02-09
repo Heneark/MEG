@@ -52,7 +52,7 @@ os.environ["SUBJECTS_DIR"] = "/dycog/meditation/ERC/Analyses/ANAT/T1/FreeSurfer/
 #PATH BASES
 #==============================================================================
 try:
-    code_path = op.dirname(__file__)
+    code_path = os.getcwd()
     Analysis_path = op.dirname(op.dirname(code_path))
     pathBase = op.dirname(Analysis_path)
 except NameError:
