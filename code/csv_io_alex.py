@@ -11,7 +11,7 @@ from termcolor import colored
 
 #GET SUBJECT LIST
 #==============================================================================
-def get_subjlist(task=None, date=None, pathBase = '/dycog/meditation/ERC/Analyses'):
+def get_subjlist(task=None, date=None, pathBase = Analysis_path):
      
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
@@ -42,7 +42,7 @@ def get_subjlist(task=None, date=None, pathBase = '/dycog/meditation/ERC/Analyse
 
 #GET SUBJECT ID
 #==============================================================================
-def get_id(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
+def get_id(subj, pathBase = Analysis_path):
      
      if subj.isdigit() == True:
          return subj
@@ -59,7 +59,7 @@ def get_id(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
 
 #GET SUBJECT PROTOCOL
 #==============================================================================
-def get_protocol(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
+def get_protocol(subj, pathBase = Analysis_path):
          
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
@@ -79,7 +79,7 @@ def get_protocol(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
 
 #GET SUBJECT TASK
 #==============================================================================
-def get_task(subj, block = None, protocol = None, pathBase = '/dycog/meditation/ERC/Analyses'):
+def get_task(subj, block = None, protocol = None, pathBase = Analysis_path):
          
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
@@ -97,7 +97,7 @@ def get_task(subj, block = None, protocol = None, pathBase = '/dycog/meditation/
 
 #GET SUBJECT DATE
 #==============================================================================
-def get_date(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
+def get_date(subj, pathBase = Analysis_path):
           
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
@@ -112,7 +112,7 @@ def get_date(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
 
 #GET SUBJECT'S NAME
 #==============================================================================
-def get_name(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
+def get_name(subj, pathBase = Analysis_path):
           
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
@@ -128,7 +128,7 @@ def get_name(subj, pathBase = '/dycog/meditation/ERC/Analyses'):
      
 #GET RAW DATA PATH
 #==============================================================================
-def get_rawpath(subj, task=None, noise=0, NoiseBase ='/dycog/meditation/ERC/Raw data/MEG_noise', pathBase = '/dycog/meditation/ERC/Analyses'):
+def get_rawpath(subj, task=None, noise=0, NoiseBase = op.join(Raw_data_path,'MEG_noise'), pathBase = Analysis_path):
         
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
 
@@ -163,7 +163,7 @@ def get_rawpath(subj, task=None, noise=0, NoiseBase ='/dycog/meditation/ERC/Raw 
 
 #GET AN ORDERED DICT OF A SUBJECT'S BLOCKS AND CORRESPONDING STATES
 #==============================================================================
-def get_blocks(subj, state=None, task=None, protocol=None, pathBase = '/dycog/meditation/ERC/Analyses'):
+def get_blocks(subj, state=None, task=None, protocol=None, pathBase = Analysis_path):
      
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
 
@@ -192,7 +192,7 @@ def get_blocks(subj, state=None, task=None, protocol=None, pathBase = '/dycog/me
 
 #COUNT THE NUMBER OF SUBJ BLOCKS FOR A GIVEN STATE
 #==============================================================================
-def state_count(state, pathBase = '/dycog/meditation/ERC/Analyses'):
+def state_count(state, pathBase = Analysis_path):
      
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
  
