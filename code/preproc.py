@@ -42,7 +42,7 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
     if not op.isfile(ICA_log):
         with open(ICA_log, 'w') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','n_selected_comps','ncomp_ECG','pulse','ncomp_EOG','rejection','dropped_epochs'))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','n_selected_comps','ncomp_ECG','pulse','ncomp_EOG','rejection','dropped_epochs'))
     
     # Filter for ICA
     raw.filter(l_freq=1, h_freq=40, fir_design='firwin', picks=picks_meg, n_jobs=4)
