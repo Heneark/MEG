@@ -11,14 +11,13 @@ from termcolor import colored
 
 #PATH BASES
 #==============================================================================
-try:
-    code_path = os.getcwd()
-    Analysis_path = op.dirname(op.dirname(code_path))
-    pathBase = op.dirname(Analysis_path)
-except NameError:
-    pathBase = '/dycog/meditation/ERC'
-    Analysis_path = op.join(pathBase, 'Analyses')
-    code_path = op.join(Analysis_path, 'MEG', 'code')
+code_path = os.getcwd()
+Analysis_path = op.dirname(op.dirname(code_path))
+pathBase = op.dirname(Analysis_path)
+
+#pathBase = '/dycog/meditation/ERC'
+#Analysis_path = op.join(pathBase, 'Analyses')
+#code_path = op.join(Analysis_path, 'MEG', 'code')
 
 Raw_data_path = op.join(pathBase, 'Raw data')
 #==============================================================================
