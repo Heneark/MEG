@@ -79,7 +79,7 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     
     # Write ICA log
     with open(ICA_log, 'a') as fid:
-        fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,ica.n_components_,len(ica.labels_['ecg']),pulse,len(ica.labels_['eog']),rejection,len(ica.drop_inds_)))
+        fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,ica.n_components_,len(ica.labels_['ecg']),int(round(pulse)),len(ica.labels_['eog']),rejection,len(ica.drop_inds_)))
 
     return ica
     
