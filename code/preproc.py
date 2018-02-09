@@ -166,9 +166,10 @@ def process0(subject, task, state, block, raw=None, n_components=.975, ica=None,
             epochs = create_ecg_epochs(raw, reject=rejection, picks=picks, tmin=epoching['tmin'], tmax=epoching['tmax'], baseline=epoching['baseline'], ch_name=ECG_channel[1])
     
     # Rejection
-#    rejected = epochs.copy()
+    epochs.plot_drop_log()
+    plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.svg'.format(epoching['name'], state, block)))
+    plt.close()
     epochs.drop_bad()
-#    rejected.drop_bad(reject=None, flat=rejection)
     
     # Save epochs
     epochs.save(epochs_file)
