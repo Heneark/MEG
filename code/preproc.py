@@ -84,6 +84,7 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     return ica
     
 
+#subject='010', task='SMEG', state='OM', block='07'; n_components=.975; notch=np.arange(50,301,50); high_pass=0.1; low_pass=None; rejection={'mag':2.5e-12}; epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}; ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'
 def process0(subject, task, state, block, raw=None, n_components=.975, ica=None, check_ica=True, notch=np.arange(50,301,50), high_pass=0.1, low_pass=None, rejection={'mag':2.5e-12}, epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
     """
     Run preprocessing to create epochs and evoked response.
@@ -128,6 +129,8 @@ def process0(subject, task, state, block, raw=None, n_components=.975, ica=None,
     evoked_file = op.join(evoked_path, '{}-{}_{}-ave.fif'.format(epoching['name'], state, block))
     
     # Filter
+#    raw.notch_filter(notch, picks=picks, n_jobs=4) #python2 has mne 0.14, which does not support 'fir_design' yet
+#    raw.filter(l_freq=high_pass, h_freq=low_pass, picks=picks, n_jobs=4, l_trans_bandwidth=0.1)
     raw.notch_filter(notch, fir_design='firwin', picks=picks, n_jobs=4)
     raw.filter(l_freq=high_pass, h_freq=low_pass, fir_design='firwin', picks=picks, n_jobs=4)
     
