@@ -37,7 +37,7 @@ from mne.event import make_fixed_length_events
 from mne.minimum_norm import make_inverse_operator, apply_inverse, write_inverse_operator, read_inverse_operator
 
 
-#ENVIRONMENT VARIABLES
+# ENVIRONMENT VARIABLES
 #==============================================================================
 os.environ["ETS_TOOLKIT"] = "wx"
 os.environ["FREESURFER_HOME"] = "/opt/freesurfer"
@@ -45,21 +45,8 @@ os.environ["SUBJECTS_DIR"] = "/dycog/meditation/ERC/Analyses/ANAT/T1/FreeSurfer/
 #==============================================================================
 
 
-#PATH BASES
+# CUSTOM SCRIPTS WITH PATH BASES
 #==============================================================================
-try:
-    code_path = os.getcwd()
-    Analysis_path = op.dirname(op.dirname(code_path))
-    pathBase = op.dirname(Analysis_path)
-except NameError:
-    pathBase = '/dycog/meditation/ERC'
-    Analysis_path = op.join(pathBase, 'Analyses')
-    code_path = op.join(Analysis_path, 'MEG', 'code')
-
-Raw_data_path = op.join(pathBase, 'Raw data')
-#==============================================================================
-
-
-# Import custom scripts
 from io_alex import *
 from csv_io_alex import *
+#==============================================================================
