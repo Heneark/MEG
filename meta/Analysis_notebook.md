@@ -35,7 +35,7 @@ Subject 007
 
 Subject 010
 -----------
-**drop_log**: ~200 epochs dropped
+**drop log**: ~200 epochs dropped => temporal high-frequnecy noise (MRT32,41,21,31,22,42; MLT32,42 -2805)
 
 `RS_01`: 2nd weak **EOG** component, around +200 ms
 
@@ -44,3 +44,10 @@ Subject 010
 
 Subject 12
 ----------
+
+
+Subject 40
+----------
+**NOISE**
+
+`RS_01`: MLF11->14; MLT11,21,31,32,41,42,43,51->57
