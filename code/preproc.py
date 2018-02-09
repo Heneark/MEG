@@ -84,7 +84,7 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     return ica
     
 
-#subject='010', task='SMEG', state='OM', block='07'; n_components=.975; notch=np.arange(50,301,50); high_pass=0.1; low_pass=None; rejection={'mag':2.5e-12}; epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}; ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'
+#subject='010'; task='SMEG'; state='OM'; block='07'; n_components=.975; notch=np.arange(50,301,50); high_pass=0.1; low_pass=None; rejection={'mag':2.5e-12}; epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}; ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'
 def process0(subject, task, state, block, raw=None, n_components=.975, ica=None, check_ica=True, notch=np.arange(50,301,50), high_pass=0.1, low_pass=None, rejection={'mag':2.5e-12}, epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
     """
     Run preprocessing to create epochs and evoked response.
