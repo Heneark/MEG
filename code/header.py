@@ -36,10 +36,6 @@ from mne.preprocessing import create_eog_epochs, create_ecg_epochs, read_ica
 from mne.event import make_fixed_length_events
 from mne.minimum_norm import make_inverse_operator, apply_inverse, write_inverse_operator, read_inverse_operator
 
-# Import custom scripts
-from io_alex import *
-from csv_io_alex import *
-
 
 #ENVIRONMENT VARIABLES
 #==============================================================================
@@ -62,3 +58,8 @@ except NameError:
 
 Raw_data_path = op.join(pathBase, 'Raw data')
 #==============================================================================
+
+
+# Import custom scripts
+from io_alex import *
+from csv_io_alex import *
