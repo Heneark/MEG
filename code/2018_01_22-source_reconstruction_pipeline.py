@@ -58,7 +58,7 @@ for sub in subjects:
 
 # # Run anatomy functions in a console (does not work with IPython).
 # # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')"at the top of this script
-#subjects = ['055', '073', '094']
+#subjects = ['055', '094']
 #for s,sub in enumerate(subjects):
 #    watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'inner_skull.surf'))
 ##    watershed = True

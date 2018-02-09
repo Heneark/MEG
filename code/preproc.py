@@ -42,7 +42,7 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
     if not op.isfile(ICA_log):
         with open(ICA_log, 'w') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','n_selected_comps','ncomp_ECG','ncomp_EOG','rejection','dropped_epochs'))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','n_components','n_selected_comps','ncomp_ECG','pulse','ncomp_EOG','rejection','dropped_epochs'))
     
     # Filter for ICA
     raw.filter(l_freq=1, h_freq=40, fir_design='firwin', picks=picks_meg, n_jobs=4)
@@ -55,8 +55,10 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     ica.scores_ = dict()
     try:
         ica.scores_['ecg'] = ica.find_bads_ecg(raw, ch_name=ECG_channel[0], threshold=0.3)[1] #default threshold at 0.25 too low
+        pulse = find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=ECG_channel[0])[2]
     except:
         ica.scores_['ecg'] = ica.find_bads_ecg(raw, ch_name=ECG_channel[1], threshold=0.3)[1]
+        pulse = find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=ECG_channel[1])[2]
     ica.exclude.extend(ica.labels_['ecg'])
     
     ica.scores_['eog'] = ica.find_bads_eog(raw, ch_name=EOG_channel)[1]
@@ -74,13 +76,13 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     # Save ICA
     if save:
         ica.save(op.join(ICA_path, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
-    else:
-        return ica
     
     # Write ICA log
     with open(ICA_log, 'a') as fid:
-        fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,ica.n_components_,len(ica.labels_['ecg']),len(ica.labels_['eog']),rejection,len(ica.drop_inds_)))
+        fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,n_components,ica.n_components_,len(ica.labels_['ecg']),pulse,len(ica.labels_['eog']),rejection,len(ica.drop_inds_)))
 
+    return ica
+    
 
 def process0(subject, task, state, block, raw=None, n_components=.975, ica=None, check_ica=True, notch=np.arange(50,301,50), high_pass=0.1, low_pass=None, rejection={'mag':2.5e-12}, epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
     """
@@ -109,9 +111,10 @@ def process0(subject, task, state, block, raw=None, n_components=.975, ica=None,
     ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
     ICA_file = op.join(ICA_path, '{}_{}-{}_components-ica.fif'.format(state, block, n_components))
     if not ica:
-        if not op.isfile(ICA_file):
-            run_ica(subject, task, state, block, n_components=n_components, ECG_channel=ECG_channel, EOG_channel=EOG_channel)
-        ica = read_ica(ICA_file)
+        try:
+            ica = read_ica(ICA_file)
+        except IOError:
+            ica = run_ica(subject, task, state, block, raw=raw.copy(), n_components=n_components, ECG_channel=ECG_channel, EOG_channel=EOG_channel)
     
     # Save paths
     epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
@@ -135,15 +138,15 @@ def process0(subject, task, state, block, raw=None, n_components=.975, ica=None,
         plt.close()
         
         try:
-            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[0], reject=rejection, picks=picks)
+            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[0], picks=picks)
         except:
-            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[1], reject=rejection, picks=picks)
+            check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel[1], picks=picks)
         for comp in ica.labels_['ecg']:
             ica.plot_properties(check_ecg, picks=comp)
             plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_ecg{}.svg'.format(state, block, n_components, comp)))
             plt.close()
         
-        check_eog = create_eog_epochs(raw, ch_name=EOG_channel, reject=rejection, picks=picks)
+        check_eog = create_eog_epochs(raw, ch_name=EOG_channel, picks=picks)
         for comp in ica.labels_['eog']:
             ica.plot_properties(check_eog, picks=comp)
             plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_eog{}.svg'.format(state, block, n_components, comp)))
