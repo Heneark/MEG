@@ -55,10 +55,10 @@ def run_ica(subject, task, state, block, raw=None, save=True, n_components=0.975
     ica.scores_ = dict()
     try:
         ica.scores_['ecg'] = ica.find_bads_ecg(raw, ch_name=ECG_channel[0], threshold=0.3)[1] #default threshold at 0.25 too low
-        pulse = find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=ECG_channel[0])[2]
+        pulse = mne.preprocessing.find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=ECG_channel[0])[2]
     except:
         ica.scores_['ecg'] = ica.find_bads_ecg(raw, ch_name=ECG_channel[1], threshold=0.3)[1]
-        pulse = find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=ECG_channel[1])[2]
+        pulse = mne.preprocessing.find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=ECG_channel[1])[2]
     ica.exclude.extend(ica.labels_['ecg'])
     
     ica.scores_['eog'] = ica.find_bads_eog(raw, ch_name=EOG_channel)[1]
