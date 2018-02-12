@@ -46,8 +46,7 @@ import morphing
 for sub in subjects:
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):
-#            preproc.run_ica(sub, task, state, blk)
-            preproc.process0(sub, task, state, blk)
+            preproc.epoch(task, sub, state, blk)
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================
