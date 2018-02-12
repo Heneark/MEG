@@ -88,11 +88,24 @@ Subject 028
 -----------
 `RS_01`: 3 **EOG** components, shifted in time
 
-
 `FA_02`: strange ECG component, 4 **EOG** components
 
+`OM_06`: 144 **epochs** dropped (NOISE, almost 1 min unexploitable + some moderately bad channels); 2nd weak and noisy **EOG** component
 
-`OM_06`: 144 **epochs** dropped; 2nd weak and noisy **EOG** component
+`FA_10`: 145 **epochs** dropped (same)
+
+`OM_14`: 183 **epochs** dropped (same); 2nd weak and noisy **EOG** component
+
+
+Subject 030
+-----------
+`FA_02`: 3rd weird **ECG** component; 2nd weird **EOG** component, not frontal, +150 ms
+
+`OM_06`: 130 **epochs** dropped (lot of noise); 2nd weird **ECG** component
+
+`OM_10`: noisy overlay (71 epochs dropped); 2nd weird **ECG** component
+
+`FA_14`: two additional weak **ECG** components
 
 
 Subject 40
