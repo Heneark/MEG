@@ -95,7 +95,7 @@ def run_ica(task, subject, state, block, raw=None, save=True, n_components=0.975
 
 
 #subject='010'; task='SMEG'; state='OM'; block='07'; n_components=.975; notch=np.arange(50,301,50); high_pass=0.1; low_pass=None; rejection={'mag':2.5e-12}; epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}; ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'
-def process(task, subject, state, block, save=False, n_components=.975, ica=None, check_ica=True, notch=np.arange(50,301,50), high_pass=0.1, low_pass=None, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
+def process(task, subject, state, block, save=False, n_components=.975, ica=None, check_ica=True, save_ica=True, notch=np.arange(50,301,50), high_pass=0.1, low_pass=None, ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
     """
     Run preprocessing and return preprocessed raw data.
     Output:
@@ -134,7 +134,7 @@ def process(task, subject, state, block, save=False, n_components=.975, ica=None
         if op.isfile(ICA_file):
             ica = read_ica(ICA_file)
         else:
-            ica = run_ica(task, subject, state, block, raw=raw.copy(), n_components=n_components, ECG_channel=ECG_channel, EOG_channel=EOG_channel)
+            ica = run_ica(task, subject, state, block, raw=raw.copy(), n_components=n_components, ECG_channel=ECG_channel, EOG_channel=EOG_channel, save=save_ica)
     
     # Filter
     try:
@@ -153,14 +153,16 @@ def process(task, subject, state, block, save=False, n_components=.975, ica=None
         check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel)
         for comp in ica.labels_['ecg']:
             ica.plot_properties(check_ecg, picks=comp)
-            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_ecg{}.svg'.format(state, block, n_components, comp)))
-            plt.close()
+            if save_ica:
+                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_ecg{}.svg'.format(state, block, n_components, comp)))
+                plt.close()
         
         check_eog = create_eog_epochs(raw, ch_name=EOG_channel)
         for comp in ica.labels_['eog']:
             ica.plot_properties(check_eog, picks=comp)
-            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_eog{}.svg'.format(state, block, n_components, comp)))
-            plt.close()
+            if save_ica:
+                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_eog{}.svg'.format(state, block, n_components, comp)))
+                plt.close()
     
     # Apply ICA
     ica.apply(raw)
@@ -171,16 +173,17 @@ def process(task, subject, state, block, save=False, n_components=.975, ica=None
     return raw
 
 
-def epoch(task, subject, state, block, raw=None, rejection={'mag':2.5e-12}, epoching={'name':'Cardiac','tmin':-.5,'tmax':.8,'baseline':(-.4,-.3)}):
+def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5e-12}, name='Cardiac', tmin=-.5, tmax=.8, baseline=(-.4,-.3), ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV'):
     """
     Epoch preprocessed raw data and average to evoked response, and return them.
     Output:
         'Analyses/<task>/meg/Epochs/<subject>/<epoch_name>-<state>_<block>-epo.fif'
         'Analyses/<task>/meg/Evoked/<subject>/<epoch_name>-<state>_<block>-ave.fif'
-    Parameters (see mne.filter):
+    Parameters (see mne.Epochs):
         raw: preprocessed raw data to epoch. If None (default), will be loaded according to previous parameters.
         rejection: epoch rejection threshold (default to 2500 fT for magnetometers)
-        epoching: dictionary of epoching parameters. Keys (see mne.Epochs): name (only 'Cardiac' is supported yet), tmin, tmax, baseline
+        name: name of the epoch (only 'Cardiac' is supported yet)
+        tmin, tmax, baseline: epoching parameters
     """
     # Load data
     raw_path = op.join(Analysis_path, task, 'meg', 'Preprocessed_raw', subject)
@@ -195,32 +198,38 @@ def epoch(task, subject, state, block, raw=None, rejection={'mag':2.5e-12}, epoc
     epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
     if not op.exists(epochs_path):
         os.makedirs(epochs_path)
-    epochs_file = op.join(epochs_path, '{}-{}_{}-epo.fif'.format(epoching['name'], state, block))
+    epochs_file = op.join(epochs_path, '{}-{}_{}-epo.fif'.format(name, state, block))
     
     evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
     if not op.exists(evoked_path):
         os.makedirs(evoked_path)
-    evoked_file = op.join(evoked_path, '{}-{}_{}-ave.fif'.format(epoching['name'], state, block))
+    evoked_file = op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))
+    
+    #Channels fix
+    if type(ECG_channel) is list:
+        ECG_list = ECG_channel
+        for chan in ECG_list:
+            if chan in raw.ch_names:
+                ECG_channel = chan
     
     # Epoch
-    if epoching['name'] == 'Cardiac':
-        try:
-            epochs = create_ecg_epochs(raw, reject=rejection, picks=picks, tmin=epoching['tmin'], tmax=epoching['tmax'], baseline=epoching['baseline'], ch_name=ECG_channel[0])
-        except:
-            epochs = create_ecg_epochs(raw, reject=rejection, picks=picks, tmin=epoching['tmin'], tmax=epoching['tmax'], baseline=epoching['baseline'], ch_name=ECG_channel[1])
+    if name == 'Cardiac':
+        epochs = create_ecg_epochs(raw, reject=rejection, picks=picks, tmin=tmin, tmax=tmax, baseline=baseline, ch_name=ECG_channel)
     
     # Rejection
     epochs.plot_drop_log()
-    plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.svg'.format(epoching['name'], state, block)))
+    plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.svg'.format(name, state, block)))
     plt.close()
     epochs.drop_bad()
     
     # Save epochs
-    epochs.save(epochs_file)
+    if save:
+        epochs.save(epochs_file)
     
     # Save evoked
     evoked = epochs.average()
-    evoked.save(evoked_file)
+    if save:
+        evoked.save(evoked_file)
     
     drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
     with open(drop_log, 'a') as fid:

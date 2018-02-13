@@ -27,7 +27,6 @@ for sub in reject:
 # # Future subjects list:
 #subjects = subjects[subjects.index('054')+1:]
 subjects.sort()
-subjects = subjects[subjects.index('073')+1:]
 #==============================================================================
 
 
