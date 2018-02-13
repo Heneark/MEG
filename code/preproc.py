@@ -12,7 +12,7 @@ from header import *
 
 # MANUAL EXECUTION
 #==============================================================================
-# subject='014'; task='SMEG'; state='RS'; block='01'; n_components=.975; method='fastica'; notch=np.arange(50,301,50); high_pass=0.1; low_pass=None; rejection={'mag':2.5e-12}; ica_rejection={'mag':4000e-15}; ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'; stim_channel='UPPT001'
+# subject='094'; task='SMEG'; state='OM'; block='15'; n_components=.975; method='fastica'; notch=np.arange(50,301,50); high_pass=0.1; low_pass=None; rejection={'mag':2.5e-12}; ica_rejection={'mag':4000e-15}; ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'; stim_channel='UPPT001'
 
 # ica = run_ica(task, subject, state, block, save=False, ica_rejection={'mag':4000e-15}, ECG_threshold=0.25, EOG_threshold=3.5)
 
@@ -66,7 +66,7 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     raw.set_channel_types({stim_channel: 'stim'})
     events = mne.find_events(raw)
     start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0
-    end = raw.times[events[1][0]] if len(events) > 1 and raw.times[events[1][0]] > 300 else None
+    end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[1][0]] > 300 else None
     raw.crop(tmin=start, tmax=end)
     
     # Channels fix
@@ -85,10 +85,12 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     if fit_ica or not op.isfile(ICA_file):
         ica = ICA(n_components=n_components, method=method) #create ICA object
         ica.drop_inds_ = []
-        ica.rejection = ica_rejection
         ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
+        dropped = len(ica.drop_inds_)
     else:
         ica = read_ica(ICA_file)
+        ica_rejection = '{previous threshold}'
+        dropped = 'previously rejected'
     
     ica.scores_ = dict()
     ica.labels_ = dict()
@@ -105,12 +107,12 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     # Plot scores
     ica.plot_scores(ica.scores_['ecg'], exclude=ica.labels_['ecg'], title="ECG artifacts")
     if save:
-        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_ecg.svg'.format(state, block, n_components)))
+        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_ecg.png'.format(state, block, n_components)), dpi=360, transparent=True)
         plt.close()
     
     ica.plot_scores(ica.scores_['eog'], exclude=ica.labels_['eog'], title="EOG artifacts")
     if save:
-        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_eog.svg'.format(state, block, n_components)))
+        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_eog.png'.format(state, block, n_components)), dpi=360, transparent=True)
         plt.close()
     
     # Save ICA
@@ -118,7 +120,7 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         ica.save(ICA_file)
         # Write ICA log
         with open(ICA_log, 'a') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,start,end if end else int(round(raw.times[-1])),n_components,ica.n_components_,len(ica.labels_['ecg']),int(round(pulse)),len(ica.labels_['eog']),ica.rejection,len(ica.drop_inds_)))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,int(round(start)),int(round(end)) if end else int(round(raw.times[-1])),n_components,ica.n_components_,len(ica.labels_['ecg']),int(round(pulse)),len(ica.labels_['eog']),ica_rejection,dropped))
     
     return ica
 
@@ -162,7 +164,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     raw.set_channel_types({stim_channel: 'stim'})
     events = mne.find_events(raw)
     start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0
-    end = raw.times[events[1][0]] if len(events) > 1 and raw.times[events[1][0]] > 300 else None
+    end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[1][0]] > 300 else None
     raw.crop(tmin=start, tmax=end)
     
     # Channels fix
@@ -186,7 +188,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         if save_ica:
             for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*overlay_ecg*')):
                 os.remove(pic)
-            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_ecg.svg'.format(state, block, n_components)))
+            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_ecg.png'.format(state, block, n_components)), dpi=360, transparent=True)
             plt.close()
         
         for comp in ica.labels_['ecg']:
@@ -194,7 +196,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
             if save_ica:
                 for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_ecg*')):
                     os.remove(pic)
-                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_ecg{}.svg'.format(state, block, n_components, comp)))
+                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_ecg{}.png'.format(state, block, n_components, comp)), dpi=360, transparent=True)
                 plt.close()
         
         # EOG components
@@ -203,7 +205,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         if save_ica:
             for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*overlay_eog*')):
                 os.remove(pic)
-            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_eog.svg'.format(state, block, n_components)))
+            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_eog.png'.format(state, block, n_components)), dpi=360, transparent=True)
             plt.close()
         
         for comp in ica.labels_['eog']:
@@ -211,7 +213,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
             if save_ica:
                 for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_eog*')):
                     os.remove(pic)
-                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_eog{}.svg'.format(state, block, n_components, comp)))
+                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_eog{}.png'.format(state, block, n_components, comp)), dpi=360, transparent=True)
                 plt.close()
     
     # Apply ICA
@@ -272,14 +274,14 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
         evoked_file = op.join(evoked_path, '{}-{}_{}-ave.fif'.format(epo, state, block))
         
         # Epoch
-        if name == 'ECG_included':
+        if epo == 'ECG_included':
             epochs[epo] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, ch_name=ECG_channel)
-        if name == 'ECG_excluded':
+        if epo == 'ECG_excluded':
             epochs[epo] = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, ch_name=ECG_channel)
         
         # Rejection
         epochs[epo].plot_drop_log()
-        plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.svg'.format(name, state, block)))
+        plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.png'.format(epo, state, block)), dpi=360, transparent=True)
         plt.close()
         epochs[epo].drop_bad()
         
