@@ -108,6 +108,16 @@ Subject 030
 `FA_14`: two additional weak **ECG** components
 
 
+Subject 032
+-----------
+**Nothing to report**
+
+
+Subject 037
+-----------
+**drop log** 200-250 epochs dropped
+
+
 Subject 40
 ----------
 **NOISE** => rejected
