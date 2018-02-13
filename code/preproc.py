@@ -225,7 +225,7 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
     
     # Epoch
     if name == 'Cardiac':
-        epochs = create_ecg_epochs(raw, reject=rejection, picks=picks, tmin=tmin, tmax=tmax, baseline=baseline, ch_name=ECG_channel)
+        epochs = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, ch_name=ECG_channel)
     
     # Rejection
     epochs.plot_drop_log()
