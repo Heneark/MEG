@@ -9,6 +9,8 @@
 
 4. In the console, run:
     pip3 install --prefix ~/.local <package>
+OR even better:
+    pip3 install --user (--upgrade) <package>	
 
 5. If a package attempts to uninstall another required package to update it, which will fail without superuser rights, run instead:
     pip3 install --prefix ~/.local <package> <requirement>==<version>
