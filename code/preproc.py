@@ -107,12 +107,12 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     # Plot scores
     ica.plot_scores(ica.scores_['ecg'], exclude=ica.labels_['ecg'], title="ECG artifacts")
     if save:
-        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_ecg.png'.format(state, block, n_components)), dpi=360, transparent=True)
+        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_ecg.pdf'.format(state, block, n_components)), transparent=True)
         plt.close()
     
     ica.plot_scores(ica.scores_['eog'], exclude=ica.labels_['eog'], title="EOG artifacts")
     if save:
-        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_eog.png'.format(state, block, n_components)), dpi=360, transparent=True)
+        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_eog.pdf'.format(state, block, n_components)), transparent=True)
         plt.close()
     
     # Save ICA
@@ -129,7 +129,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     """
     Run preprocessing and return preprocessed raw data.
     If check_ica, plot overlay and properties of ECG and EOG components (default to True).
-    If save_ica, save ICA and ICA plots (deleting previously existing ones), and write ICA log (default to True).
+    If save_ica, save ICA and ICA plots (deleting previously existing component properties), and write ICA log (default to True).
     If overwrite_ica, artifact detection will be perfomed again even if an ICA file exists (default to False).
     Output:
         'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_ecg.svg'
@@ -186,34 +186,30 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         check_ecg = create_ecg_epochs(raw, ch_name=ECG_channel, reject=ica_rejection)
         ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'])
         if save_ica:
-            for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*overlay_ecg*')):
-                os.remove(pic)
-            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_ecg.png'.format(state, block, n_components)), dpi=360, transparent=True)
+            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_ecg.pdf'.format(state, block, n_components)), transparent=True)
             plt.close()
+            for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_ecg*')):
+                os.remove(pic)
         
         for comp in ica.labels_['ecg']:
             ica.plot_properties(check_ecg, picks=comp)
             if save_ica:
-                for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_ecg*')):
-                    os.remove(pic)
-                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_ecg{}.png'.format(state, block, n_components, comp)), dpi=360, transparent=True)
+                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_ecg{}.pdf'.format(state, block, n_components, comp)), transparent=True)
                 plt.close()
         
         # EOG components
         check_eog = create_eog_epochs(raw, ch_name=EOG_channel, reject=ica_rejection)
         ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'])
         if save_ica:
-            for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*overlay_eog*')):
-                os.remove(pic)
-            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_eog.png'.format(state, block, n_components)), dpi=360, transparent=True)
+            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_eog.pdf'.format(state, block, n_components)), transparent=True)
             plt.close()
+            for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_eog*')):
+                os.remove(pic)
         
         for comp in ica.labels_['eog']:
             ica.plot_properties(check_eog, picks=comp)
             if save_ica:
-                for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_eog*')):
-                    os.remove(pic)
-                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_eog{}.png'.format(state, block, n_components, comp)), dpi=360, transparent=True)
+                plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_eog{}.pdf'.format(state, block, n_components, comp)), transparent=True)
                 plt.close()
     
     # Apply ICA
@@ -281,7 +277,7 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
         
         # Rejection
         epochs[epo].plot_drop_log()
-        plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.png'.format(epo, state, block)), dpi=360, transparent=True)
+        plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.png'.format(epo, state, block)), transparent=True)
         plt.close()
         epochs[epo].drop_bad()
         
