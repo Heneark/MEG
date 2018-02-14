@@ -1,5 +1,6 @@
 09/02/2018
 ==========
+### Epoch rejection: mag = 2500 fT; ICA rejection: mag = 4000 fT; ECG threshold = 0.3; EOG threshold = 3.0
 
 ECG components: epochs centered around R (`qrs_detector`), P around -200 ms, T around +300 ms
 
@@ -125,3 +126,21 @@ Subject 40
 
 14/02/2018
 ==========
+### Epoch rejection: mag = 3500 fT; ICA rejection: mag = 7000 fT; ECG threshold = 0.25; EOG threshold = 3.5
+
+Subjects 004 (all), 069 (`RS_01` and `FA_02`) and 094 (`OM_02`) have no ECG components detected.
+
+Subjects 053 (`FA_02`and `OM_06`), 069 (`FA_02`) and 073 (`RS_01`) have no EOG components detected.
+
+
+Subject 004
+-----------
+Same issue as with 0.3 ECG threshold: 2 ECG components with higher score but not detected
+
+=> down to 0.1 for detection
+### These 2 components are not ECG
+
+
+Subject 063
+-----------
+`OM_06`: ECG22 has a score of 0.24
