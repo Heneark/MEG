@@ -12,20 +12,27 @@ from header import *
 
 # MANUAL EXECUTION
 #==============================================================================
-# subject='094'; task='SMEG'; state='OM'; block='15'; n_components=.975; method='fastica'; notch=np.arange(50,301,50); high_pass=0.1; low_pass=None; rejection={'mag':2.5e-12}; ica_rejection={'mag':4000e-15}; ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'; stim_channel='UPPT001'
+# method='fastica'; notch=np.arange(50,301,50); high_pass=.5; low_pass=100
+# ECG_threshold=0.1; EOG_threshold=3.5; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
+# ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'; stim_channel='UPPT001'
 
-# ica = run_ica(task, subject, state, block, save=False, ica_rejection={'mag':4000e-15}, ECG_threshold=0.25, EOG_threshold=3.5)
+# subject='069'; state='RS'; block='01'; task='SMEG'; n_components=.975
 
-# raw, raw_ECG = process(task, subject, state, block, check_ica=True, save_ica=False, overwrite_ica=False, notch=np.arange(50,301,50), high_pass=1, low_pass=40)
+# ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+# ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
+# ica.scores_['ecg'][np.where(ica.scores_['ecg']>0.1)]
+
+# raw, raw_ECG = process(task, subject, state, block, ica=ica, check_ica=True, save_ica=False, high_pass=1, low_pass=40, notch=None)
 
 # epochs,evoked = epoch(task, subject, state, block, save=False, rejection={'mag':2.5e-12}, tmin=-.5, tmax=.8, baseline=(-.4,-.3), overwrite_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3.5)
 #==============================================================================
 
 
+# # /!\ Custom attributes (e.g., ica.scores_) are not kept upon .save(), calling _write_ica() whose dict ica_misc is not editable on call.
 def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, ECG_channel=['EEG062-2800', 'EEG062'], ECG_threshold=0.25, EOG_channel='EOGV', EOG_threshold=3.5, stim_channel='UPPT001'):
     """
     Fit ICA on raw MEG data and return ICA object.
-    If save, save ICA, save ECG and EOG artifact scores plots (deleting previously existing ones), and write log (default to True).
+    If save, save ICA, save ECG and EOG artifact scores plots, and write log (default to True).
     If fit_ica, fit ICA even if there is already an ICA file (default to False).
     Output:
         'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-ica.fif'
@@ -177,7 +184,8 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     raw.pick_types(meg=True, exclude='bads', include=[ECG_channel, EOG_channel], ref_meg=False)
     
     # Filter
-    raw.notch_filter(notch, fir_design='firwin', n_jobs=4)
+    if notch:
+        raw.notch_filter(notch, fir_design='firwin', n_jobs=4)
     raw.filter(l_freq=high_pass, h_freq=low_pass, fir_design='firwin', n_jobs=4)
     
     # Visual check
@@ -277,7 +285,7 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
         
         # Rejection
         epochs[epo].plot_drop_log()
-        plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.png'.format(epo, state, block)), transparent=True)
+        plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.pdf'.format(epo, state, block)), transparent=True)
         plt.close()
         epochs[epo].drop_bad()
         

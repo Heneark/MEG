@@ -138,9 +138,21 @@ Subject 004
 Same issue as with 0.3 ECG threshold: 2 ECG components with higher score but not detected
 
 => down to 0.1 for detection
-### These 2 components are not ECG
+### These 2 components are not ECG (see manually generated component plots).
 
 
 Subject 063
 -----------
 `OM_06`: ECG22 has a score of 0.24
+
+
+Subject 069
+-----------
+`RS_01`: 
+
+
+
+Subject 094
+-----------
+`OM_02`: ECG19 has a score of 0.24. Two additional candidates: ECG18 and 21 (score 0.18).
+
