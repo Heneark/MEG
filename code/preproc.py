@@ -16,11 +16,11 @@ from header import *
 # ECG_threshold=0.1; EOG_threshold=3.5; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
 # ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'; stim_channel='UPPT001'
 
-# subject='069'; state='RS'; block='01'; task='SMEG'; n_components=.975
+# subject='037'; state='RS'; block='01'; task='SMEG'; n_components=.975
 
 # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
-# ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
-# ica.scores_['ecg'][np.where(ica.scores_['ecg']>0.1)]
+# ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
+# ica.labels_['ecg_scores'][np.where(ica.labels_['ecg_scores']>0.1)]
 
 # raw, raw_ECG = process(task, subject, state, block, ica=ica, check_ica=True, save_ica=False, high_pass=1, low_pass=40, notch=None)
 
@@ -29,6 +29,7 @@ from header import *
 
 
 # # /!\ Custom attributes (e.g., ica.scores_) are not kept upon .save(), calling _write_ica() whose dict ica_misc is not editable on call.
+# # => exploit the attribute labels_
 def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, ECG_channel=['EEG062-2800', 'EEG062'], ECG_threshold=0.25, EOG_channel='EOGV', EOG_threshold=3.5, stim_channel='UPPT001'):
     """
     Fit ICA on raw MEG data and return ICA object.
@@ -91,33 +92,30 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     # Fit ICA
     if fit_ica or not op.isfile(ICA_file):
         ica = ICA(n_components=n_components, method=method) #create ICA object
+        ica.exclude = []
         ica.drop_inds_ = []
+        ica.labels_ = dict()
+        ica.labels_['rejection'] = ica_rejection
         ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
-        dropped = len(ica.drop_inds_)
+        ica.labels_['drop_inds_'] = ica.drop_inds_
     else:
         ica = read_ica(ICA_file)
-        ica_rejection = '{previous threshold}'
-        dropped = 'previously rejected'
-    
-    ica.scores_ = dict()
-    ica.labels_ = dict()
-    ica.exclude = []
     
     # Detect ECG and EOG artifacts
-    ica.scores_['ecg'] = ica.find_bads_ecg(raw, ch_name=ECG_channel, threshold=ECG_threshold)[1]
+    ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw, ch_name=ECG_channel, threshold=ECG_threshold)[1]
     pulse = mne.preprocessing.find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=ECG_channel)[2]
-    ica.exclude.extend(ica.labels_['ecg'])
+    ica.exclude = list(set(ica.exclude) | set(ica.labels_['ecg']))
     
-    ica.scores_['eog'] = ica.find_bads_eog(raw, ch_name=EOG_channel, threshold=EOG_threshold)[1]
-    ica.exclude.extend(ica.labels_['eog'])
+    ica.labels_['eog_scores'] = ica.find_bads_eog(raw, ch_name=EOG_channel, threshold=EOG_threshold)[1]
+    ica.exclude = list(set(ica.exclude) | set(ica.labels_['eog']))
     
     # Plot scores
-    ica.plot_scores(ica.scores_['ecg'], exclude=ica.labels_['ecg'], title="ECG artifacts")
+    ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], title="ECG artifacts")
     if save:
         plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_ecg.pdf'.format(state, block, n_components)), transparent=True)
         plt.close()
     
-    ica.plot_scores(ica.scores_['eog'], exclude=ica.labels_['eog'], title="EOG artifacts")
+    ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], title="EOG artifacts")
     if save:
         plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_eog.pdf'.format(state, block, n_components)), transparent=True)
         plt.close()
@@ -127,7 +125,7 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         ica.save(ICA_file)
         # Write ICA log
         with open(ICA_log, 'a') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,int(round(start)),int(round(end)) if end else int(round(raw.times[-1])),n_components,ica.n_components_,len(ica.labels_['ecg']),int(round(pulse)),len(ica.labels_['eog']),ica_rejection,dropped))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,int(round(start)),int(round(end)) if end else int(round(raw.times[-1])),n_components,ica.n_components_,len(ica.labels_['ecg']),int(round(pulse)),len(ica.labels_['eog']),ica.labels_['rejection'],len(ica.labels_['drop_inds_'])))
     
     return ica
 

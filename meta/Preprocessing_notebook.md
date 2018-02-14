@@ -132,6 +132,11 @@ Subjects 004 (all), 069 (`RS_01` and `FA_02`) and 094 (`OM_02`) have no ECG comp
 
 Subjects 053 (`FA_02`and `OM_06`), 069 (`FA_02`) and 073 (`RS_01`) have no EOG components detected.
 
+Possible solutions?
+
+1. Low threshold but only take n components max (e.g. 2 for ECG)
+2. High threshold but select the highest component if none has been selected (should work for EOG)
+
 
 Subject 004
 -----------
@@ -141,18 +146,62 @@ Same issue as with 0.3 ECG threshold: 2 ECG components with higher score but not
 ### These 2 components are not ECG (see manually generated component plots).
 
 
+Subject 018
+-----------
+High number of EOG components
+
+**TO CHECK**
+
+
+Subject 037
+-----------
+With ECG threshold of 0.3, `FA_10`and `OM_14` didn't reach it; now fixed.
+
+`RS_01`:Additional candidate: ECG16 (score 0.21)
+
+
+Subject 053
+-----------
+With default EOG threshold of 3.0, `OM_06` didn't reach it.
+
+`FA_02`: 
+
+`OM_06`: 
+
+**TO-DO**: check the highest component
+
+
 Subject 063
 -----------
-`OM_06`: ECG22 has a score of 0.24
+With ECG threshold of 0.3, `OM_06`and `OM_14` didn't reach it; now fixed.
+
+`OM_06`: Additional candidate: ECG22 (score 0.24)
 
 
 Subject 069
 -----------
+Manuallly generated ECG score plots for `RS_01`, `FA_02`, `OM_06` and `FA_14`.
+
+`FA_02`: EOG as well
+
+
+Subject 070
+-----------
+High number of EOG components
+
+**TO CHECK**
+
+
+Subject 073
+-----------
 `RS_01`: 
 
+**TO-DO**: check the highest component
 
 
 Subject 094
 -----------
 `OM_02`: ECG19 has a score of 0.24. Two additional candidates: ECG18 and 21 (score 0.18).
+
+`FA_11`: Additional candidate: ECG20 (score 0.22)
 
