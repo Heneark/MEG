@@ -164,7 +164,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     raw.set_channel_types({stim_channel: 'stim'})
     events = mne.find_events(raw)
     start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0
-    end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[1][0]] > 300 else None
+    end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[-1][0]] > 300 else None
     raw.crop(tmin=start, tmax=end)
     
     # Channels fix
@@ -296,7 +296,7 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
         
         drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
         with open(drop_log, 'a') as fid:
-            fid.write('{} {} epochs dropped (threshold = {})\n'.format(epochs_file.split('/')[-2:], len(np.array(epochs[epo].drop_log)[np.where(epochs[epo].drop_log)]), rejection))
+            fid.write('{} {} epochs dropped\t{}\n'.format(epochs_file.split('/')[-2:], len(np.array(epochs[epo].drop_log)[np.where(epochs[epo].drop_log)]), rejection))
         
     return epochs,evoked
 
