@@ -1,7 +1,5 @@
 09/02/2018
-
-Preprocessing
-=============
+==========
 
 ECG components: epochs centered around R (`qrs_detector`), P around -200 ms, T around +300 ms
 
@@ -123,3 +121,7 @@ Subject 40
 **NOISE** => rejected
 
 `RS_01`: MLF11->14; MLT11,21,31,32,41,42,43,51->57
+
+
+14/02/2018
+==========
