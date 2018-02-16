@@ -1,3 +1,8 @@
+---
+author: Benjamin ADOR
+title: Preprocessing notebook
+---
+
 09/02/2018
 ==========
 ### Epoch rejection: mag = 2500 fT; ICA rejection: mag = 4000 fT; ECG threshold = 0.3; EOG threshold = 3.0
@@ -205,3 +210,9 @@ Subject 094
 
 `FA_11`: Additional candidate: ECG20 (score 0.22)
 
+
+16/02/2018
+==========
+### Reboot of the storage space => lost previous run
+
+It is unclear how find_bads_eog is scoring / classifying components => EOG_threshold set to 5 for next run, with number of EOG components limited to 1 or 2.

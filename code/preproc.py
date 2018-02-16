@@ -13,16 +13,16 @@ from header import *
 # MANUAL EXECUTION
 #==============================================================================
 # method='fastica'; notch=np.arange(50,301,50); high_pass=.5; low_pass=100
-# ECG_threshold=0.1; EOG_threshold=3.5; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
+# ECG_threshold=0.2; EOG_threshold=3.5; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
 # ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'; stim_channel='UPPT001'
 
-# subject='037'; state='RS'; block='01'; task='SMEG'; n_components=.975
+# subject='070'; state='FA'; block='07'; task='SMEG'; n_components=.975
 
 # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
-# ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
+# ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection, fit_ica=True)
 # ica.labels_['ecg_scores'][np.where(ica.labels_['ecg_scores']>0.1)]
 
-# raw, raw_ECG = process(task, subject, state, block, ica=ica, check_ica=True, save_ica=False, high_pass=1, low_pass=40, notch=None)
+# raw, raw_ECG = process(task, subject, state, block, ica=ica, check_ica=True, save_ica=False, high_pass=0.5, low_pass=None)
 
 # epochs,evoked = epoch(task, subject, state, block, save=False, rejection={'mag':2.5e-12}, tmin=-.5, tmax=.8, baseline=(-.4,-.3), overwrite_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3.5)
 #==============================================================================
@@ -30,7 +30,7 @@ from header import *
 
 # # /!\ Custom attributes (e.g., ica.scores_) are not kept upon .save(), calling _write_ica() whose dict ica_misc is not editable on call.
 # # => exploit the attribute labels_
-def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, ECG_channel=['EEG062-2800', 'EEG062'], ECG_threshold=0.25, EOG_channel='EOGV', EOG_threshold=3.5, stim_channel='UPPT001'):
+def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, ECG_channel=['EEG062-2800', 'EEG062'], ECG_threshold=0.25, ECG_max=3, EOG_channel='EOGV', EOG_threshold=3, EOG_min=1, EOG_max=2, stim_channel='UPPT001'):
     """
     Fit ICA on raw MEG data and return ICA object.
     If save, save ICA, save ECG and EOG artifact scores plots, and write log (default to True).
@@ -46,8 +46,10 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         n_components: number of components used for ICA decomposition
         method: the ICA method to use
         ica_rejection: epoch rejection threshold (default to 4000 fT for magnetometers)
-        ECG_threshold: ECG artifact detection threshold (mne default to 0.25; may be too low)
-        ECG_threshold: ECG artifact detection threshold (mne default to 3.0, increased to 3.5)
+        ECG_threshold: ECG artifact detection threshold (mne default to 0.25)
+        EOG_threshold: EOG artifact detection threshold (mne default to 3.0)
+        ECG_max: maximum number of ECG components to exclude, set to None for all ECG components detected (default to 3)
+        EOG_min: minimum number of EOG components to detect and exclude (default to 1)
         ECG_channel: channel or list of possible channels corresponding to the ECG
         EOG_channel: channel corresponding to the EOG
         stim_channel: channel corresponding to start and end experiment events
@@ -95,8 +97,8 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         ica.exclude = []
         ica.drop_inds_ = []
         ica.labels_ = dict()
-        ica.labels_['rejection'] = ica_rejection
         ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
+        ica.labels_['rejection'] = ica_rejection
         ica.labels_['drop_inds_'] = ica.drop_inds_
     else:
         ica = read_ica(ICA_file)
@@ -104,18 +106,26 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     # Detect ECG and EOG artifacts
     ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw, ch_name=ECG_channel, threshold=ECG_threshold)[1]
     pulse = mne.preprocessing.find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=ECG_channel)[2]
-    ica.exclude = list(set(ica.exclude) | set(ica.labels_['ecg']))
-    
     ica.labels_['eog_scores'] = ica.find_bads_eog(raw, ch_name=EOG_channel, threshold=EOG_threshold)[1]
-    ica.exclude = list(set(ica.exclude) | set(ica.labels_['eog']))
+    
+    # Fix number of artifactual components
+    ica.labels_['ecg'] = ica.labels_['ecg'][:ECG_max]
+    ica.labels_['eog'] = ica.labels_['eog'][:EOG_max]
+    if EOG_min and not ica.labels_['eog']:
+        ica.labels_['eog'] = np.argsort(np.abs(ica.labels_['eog_scores']))
+        ica.labels_['eog'].sort()
+        ica.labels_['eog'] = ica.labels_['eog'][:EOG_min]
+    
+    # Tag for exclusion
+    ica.exclude = ica.labels_['ecg'] + ica.labels_['eog']
     
     # Plot scores
-    ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], title="ECG artifacts")
+    ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ECG_threshold)
     if save:
         plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_ecg.pdf'.format(state, block, n_components)), transparent=True)
         plt.close()
     
-    ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], title="EOG artifacts")
+    ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog')
     if save:
         plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_eog.pdf'.format(state, block, n_components)), transparent=True)
         plt.close()
@@ -130,7 +140,7 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     return ica
 
 
-def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_channel=['EEG062-2800', 'EEG062'], ECG_threshold=0.25, EOG_channel='EOGV', EOG_threshold=3.5, stim_channel='UPPT001'):
+def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_channel=['EEG062-2800', 'EEG062'], ECG_threshold=0.25, EOG_channel='EOGV', EOG_threshold=3, stim_channel='UPPT001'):
     """
     Run preprocessing and return preprocessed raw data.
     If check_ica, plot overlay and properties of ECG and EOG components (default to True).
@@ -143,10 +153,10 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         ica: ICA object. If None (default), will be loaded according to previous parameters. ICA parameters:
             ica_rejection: epoch rejection threshold (default to 4000 fT for magnetometers)
             ECG_threshold: ECG artifact detection threshold (mne default to 0.25)
-            ECG_threshold: ECG artifact detection threshold (mne default to 3.0, increased to 3.5)
-        low_pass: frequency (in Hz) for low-pass filtering
-        high_pass: frequency (in Hz) for high-pass filtering
-        notch: frequency (in Hz) or list of frequencies to notch filter
+            ECG_threshold: ECG artifact detection threshold (mne default to 3.0)
+        low_pass: frequency (in Hz) for low-pass filtering (default to None)
+        high_pass: frequency (in Hz) for high-pass filtering (default to 0.5)
+        notch: frequency (in Hz) or list of frequencies to notch filter (set to np.array([]) for no notch filtering)
         ECG_channel: channel or list of possible channels corresponding to the ECG
         EOG_channel: channel corresponding to the EOG
         stim_channel: channel corresponding to start and end experiment events
@@ -182,7 +192,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     raw.pick_types(meg=True, exclude='bads', include=[ECG_channel, EOG_channel], ref_meg=False)
     
     # Filter
-    if notch:
+    if notch.any():
         raw.notch_filter(notch, fir_design='firwin', n_jobs=4)
     raw.filter(l_freq=high_pass, h_freq=low_pass, fir_design='firwin', n_jobs=4)
     
@@ -226,7 +236,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     return raw, raw_ECG
 
 
-def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5e-12}, name=['ECG_included','ECG_excluded'], tmin=-.5, tmax=.8, baseline=(-.4,-.3), ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV', overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3.5):
+def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5e-12}, name=['ECG_included','ECG_excluded'], tmin=-.5, tmax=.8, baseline=(-.4,-.3), ECG_channel=['EEG062-2800', 'EEG062'], EOG_channel='EOGV', overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3):
     """
     Epoch preprocessed raw data and average to evoked response, and return them.
     Output:
