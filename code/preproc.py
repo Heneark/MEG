@@ -13,13 +13,13 @@ from header import *
 # MANUAL EXECUTION
 #==============================================================================
 # method='fastica'; notch=np.arange(50,301,50); high_pass=.5; low_pass=100
-# ECG_threshold=0.2; EOG_threshold=3.5; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
+# ECG_threshold=0.2; EOG_threshold=5; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
 # ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'; stim_channel='UPPT001'
 
 # subject='070'; state='FA'; block='07'; task='SMEG'; n_components=.975
 
 # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
-# ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection, fit_ica=True)
+# ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
 # ica.labels_['ecg_scores'][np.where(ica.labels_['ecg_scores']>0.1)]
 
 # raw, raw_ECG = process(task, subject, state, block, ica=ica, check_ica=True, save_ica=False, high_pass=0.5, low_pass=None)
@@ -104,9 +104,10 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         ica = read_ica(ICA_file)
     
     # Detect ECG and EOG artifacts
-    ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw, ch_name=ECG_channel, threshold=ECG_threshold)[1]
+    ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw, ch_name=ECG_channel, threshold=ECG_threshold)[1].tolist()
+    
     pulse = mne.preprocessing.find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=ECG_channel)[2]
-    ica.labels_['eog_scores'] = ica.find_bads_eog(raw, ch_name=EOG_channel, threshold=EOG_threshold)[1]
+    ica.labels_['eog_scores'] = ica.find_bads_eog(raw, ch_name=EOG_channel, threshold=EOG_threshold)[1].tolist()
     
     # Fix number of artifactual components
     ica.labels_['ecg'] = ica.labels_['ecg'][:ECG_max]
