@@ -113,7 +113,7 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     ica.labels_['ecg'] = ica.labels_['ecg'][:ECG_max]
     ica.labels_['eog'] = ica.labels_['eog'][:EOG_max]
     if EOG_min and not ica.labels_['eog']:
-        ica.labels_['eog'] = np.argsort(np.abs(ica.labels_['eog_scores']))
+        ica.labels_['eog'] = np.argsort(np.abs(ica.labels_['eog_scores'])).tolist()
         ica.labels_['eog'].sort()
         ica.labels_['eog'] = ica.labels_['eog'][:EOG_min]
     
