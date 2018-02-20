@@ -29,6 +29,13 @@ function Adjust_Head_Pos_XYZbased(Header, meanref)
 %       Correction du probl?me d'importation des anciens badsegments
 %       ligne 806
 %
+% - 20/02/2018 Oussama Abdoun
+%       Il est maintenant possible d'avoir plusieurs fenêtres ouvertes simultanément:
+%       - le scope des findobj est limité à la figure courante (gcf)
+%       - les coordonnées de référence (utilisées pour calculer les
+%       distances) sont stockées dans UserData de la figure, au lieu d'être
+%       lues dans les champs éditables de la Figure 1
+%       Désactivation du bouton "Extract" pour éviter d'écraser le .hc d'origine
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Init
@@ -113,8 +120,8 @@ fprintf('\nJump\n\tX: %s cm\n\tY: %s cm\n\tZ: %s cm\n\n ', num2str(max(abs(D_euc
 
 y_mean = 0;
 
-GUI.f = figure('Position', [100 100 1000 1000], 'Color', [1 1 1],...
-     'MenuBar', 'none');
+GUI.f = figure('Position',[100 100 1000 1000], 'Color',[1 1 1],...
+     'MenuBar','none', 'UserData',meanref);
  
 subplot(3,1,1)
 hold on
@@ -204,7 +211,7 @@ GUI.zoom.D1.moins = uicontrol('Parent', GUI.f, 'Style', 'pushbutton', 'String', 
      'FontSize', 10, 'FontWeight','bold','BackgroundColor', [1 1 1],...
     'Callback', @zoom_adapt);
 % pour Y
-GUI.zoom.D2.plus = uicontrol('Parent', GUI.f, 'Style', 'pushbutton', 'String', '+',...
+GUI.zoom.D2.plus = uicontrol('Parent', GUI.f, 'Style', 'pushbutton', 'String', '+',...GUI.f
     'position', [130 460 20 20], 'Units', 'normalized', 'Tag', 'plus_D2',...
      'FontSize', 10, 'FontWeight','bold','BackgroundColor', [1 1 1],...
     'Callback', @zoom_adapt);
@@ -326,7 +333,7 @@ GUI.disp_events = uicontrol('Style', 'radiobutton', 'String', 'Events', 'Value',
 GUI.comput_distance = uicontrol('Parent', GUI.f, 'Style', 'pushbutton', 'String', 'Extract Head Coils AND BadSegments',...
     'position', [500 40 200 20], 'Units', 'normalized',...
      'FontSize', 8, 'FontWeight','bold','BackgroundColor', [.7 0 .9],...
-    'Callback', {@Extract_newHC_badsegments,true});
+    'Callback', {@Extract_newHC_badsegments,true}, 'Enable','off');
 
 % Extract Head Coils AND BadSegments
 GUI.comput_distance = uicontrol('Parent', GUI.f, 'Style', 'pushbutton', 'String', 'Save Head Coils AND BadSegments as...',...
@@ -348,7 +355,7 @@ function zoom_adapt(gcbo, eventdata, handles)
 bt = gco;
 quel_zoom = bt.Tag(1:end-3);
 quel_axe = bt.Tag(end-1:end);
-quel_plot = findobj('Tag', ['plot_' quel_axe]);
+quel_plot = findobj(gcf,'Tag', ['plot_' quel_axe]);
 if bt.String == '+'
     quel_plot.Parent.YLim = quel_plot.Parent.YLim*0.9;
 elseif bt.String == '-'
@@ -390,10 +397,10 @@ end
     
 function slidy(gcbo, eventdata, handles)
 
-sg = findobj('Tag', 'D_slide_delta_mov');
+sg = findobj(gcf,'Tag', 'D_slide_delta_mov');
 delta_mov = sg.Value;
 
-g = findobj('Tag', 'D_chg_delta_mov');
+g = findobj(gcf,'Tag', 'D_chg_delta_mov');
 g.String = num2str(delta_mov);
 
 chg_delta_mov
@@ -403,15 +410,15 @@ clear h sh g sg delta_mov pos_ref
 
 function chg_delta_mov(gcbo, eventdata, handles)
 
-g = findobj('Tag', 'D_chg_delta_mov');
+g = findobj(gcf,'Tag', 'D_chg_delta_mov');
 delta_mov = str2num(g.String);
 
-sg = findobj('Tag', 'D_slide_delta_mov');
+sg = findobj(gcf,'Tag', 'D_slide_delta_mov');
 sg.Value = delta_mov;
 
-set(findobj('Tag', 'goodarea_D1'), 'YData', [delta_mov delta_mov 0 0])
-set(findobj('Tag', 'goodarea_D2'), 'YData', [delta_mov delta_mov 0 0])
-set(findobj('Tag', 'goodarea_D3'), 'YData', [delta_mov delta_mov 0 0])
+set(findobj(gcf,'Tag', 'goodarea_D1'), 'YData', [delta_mov delta_mov 0 0])
+set(findobj(gcf,'Tag', 'goodarea_D2'), 'YData', [delta_mov delta_mov 0 0])
+set(findobj(gcf,'Tag', 'goodarea_D3'), 'YData', [delta_mov delta_mov 0 0])
 
 Eval_stats
 
@@ -420,24 +427,24 @@ clear g h sh sg pos_ref delta_mov
 
 function Eval_stats(gcbo, eventdata, handles)
 
-px = findobj('Tag', 'plot_D1');
-py = findobj('Tag', 'plot_D2');
-pz = findobj('Tag', 'plot_D3');
-g = findobj('Tag', 'D_chg_delta_mov');
-t_x_data_p = findobj('Tag', 'text_X_data_pct');
-t_x_data_t = findobj('Tag', 'text_X_data_time');
-t_y_data_p = findobj('Tag', 'text_Y_data_pct');
-t_y_data_t = findobj('Tag', 'text_Y_data_time');
-t_z_data_p = findobj('Tag', 'text_Z_data_pct');
-t_z_data_t = findobj('Tag', 'text_Z_data_time');
-HZ = findobj('Tag', 'HZ');
-ev = findobj('Tag', 'D_events_X');
-t_x_ev_p = findobj('Tag', 'text_X_ev_pct');
-t_y_ev_p = findobj('Tag', 'text_Y_ev_pct');
-t_z_ev_p = findobj('Tag', 'text_Z_ev_pct');
-t_x_ev_t = findobj('Tag', 'text_X_ev_nb');
-t_y_ev_t = findobj('Tag', 'text_Y_ev_nb');
-t_z_ev_t = findobj('Tag', 'text_Z_ev_nb');
+px = findobj(gcf,'Tag', 'plot_D1');
+py = findobj(gcf,'Tag', 'plot_D2');
+pz = findobj(gcf,'Tag', 'plot_D3');
+g = findobj(gcf,'Tag', 'D_chg_delta_mov');
+t_x_data_p = findobj(gcf,'Tag', 'text_X_data_pct');
+t_x_data_t = findobj(gcf,'Tag', 'text_X_data_time');
+t_y_data_p = findobj(gcf,'Tag', 'text_Y_data_pct');
+t_y_data_t = findobj(gcf,'Tag', 'text_Y_data_time');
+t_z_data_p = findobj(gcf,'Tag', 'text_Z_data_pct');
+t_z_data_t = findobj(gcf,'Tag', 'text_Z_data_time');
+HZ = findobj(gcf,'Tag', 'HZ');
+ev = findobj(gcf,'Tag', 'D_events_X');
+t_x_ev_p = findobj(gcf,'Tag', 'text_X_ev_pct');
+t_y_ev_p = findobj(gcf,'Tag', 'text_Y_ev_pct');
+t_z_ev_p = findobj(gcf,'Tag', 'text_Z_ev_pct');
+t_x_ev_t = findobj(gcf,'Tag', 'text_X_ev_nb');
+t_y_ev_t = findobj(gcf,'Tag', 'text_Y_ev_nb');
+t_z_ev_t = findobj(gcf,'Tag', 'text_Z_ev_nb');
 
 inter_good = [0 str2num(g.String)];
 
@@ -516,11 +523,11 @@ function chg_plot_coil(gcbo, eventdata, handles)
 
 global D_eucl_nas D_eucl_eleft D_eucl_eright
 
-px = findobj('Tag', 'plot_D1');
-py = findobj('Tag', 'plot_D2');
-pz = findobj('Tag', 'plot_D3');
+px = findobj(gcf,'Tag', 'plot_D1');
+py = findobj(gcf,'Tag', 'plot_D2');
+pz = findobj(gcf,'Tag', 'plot_D3');
 
-g = findobj('Tag', 'D_chg_delta_mov');
+g = findobj(gcf,'Tag', 'D_chg_delta_mov');
 delta_mov = str2num(g.String);
 
 px.YData = D_eucl_nas;
@@ -540,11 +547,11 @@ function chg_plot_XYZ(gcbo, eventdata, handles)
 
 global D_eucl_X D_eucl_Y D_eucl_Z
 
-px = findobj('Tag', 'plot_D1');
-py = findobj('Tag', 'plot_D2');
-pz = findobj('Tag', 'plot_D3');
+px = findobj(gcf,'Tag', 'plot_D1');
+py = findobj(gcf,'Tag', 'plot_D2');
+pz = findobj(gcf,'Tag', 'plot_D3');
 
-g = findobj('Tag', 'D_chg_delta_mov');
+g = findobj(gcf,'Tag', 'D_chg_delta_mov');
 delta_mov = str2num(g.String);
 
 px.YData = D_eucl_X;
@@ -562,22 +569,22 @@ clear px y pz g delta_move
 
 function Disp_events(gcbo, eventdata, handles)
 
-ex = findobj('Tag', 'D_events_X');
-ey = findobj('Tag', 'D_events_Y');
-ez = findobj('Tag', 'D_events_Z');
-de = findobj('Tag', 'Disp_D_events');
-tex1 = findobj('Tag', 'text_ev_x_1');
-tex2 = findobj('Tag', 'text_ev_x_2');
-tex3 = findobj('Tag', 'text_X_ev_pct');
-tex4 = findobj('Tag', 'text_X_ev_nb');
-tey1 = findobj('Tag', 'text_ev_y_1');
-tey2 = findobj('Tag', 'text_ev_y_2');
-tey3 = findobj('Tag', 'text_Y_ev_pct');
-tey4 = findobj('Tag', 'text_Y_ev_nb');
-tez1 = findobj('Tag', 'text_ev_z_1');
-tez2 = findobj('Tag', 'text_ev_z_2');
-tez3 = findobj('Tag', 'text_Z_ev_pct');
-tez4 = findobj('Tag', 'text_Z_ev_nb');
+ex = findobj(gcf,'Tag', 'D_events_X');
+ey = findobj(gcf,'Tag', 'D_events_Y');
+ez = findobj(gcf,'Tag', 'D_events_Z');
+de = findobj(gcf,'Tag', 'Disp_D_events');
+tex1 = findobj(gcf,'Tag', 'text_ev_x_1');
+tex2 = findobj(gcf,'Tag', 'text_ev_x_2');
+tex3 = findobj(gcf,'Tag', 'text_X_ev_pct');
+tex4 = findobj(gcf,'Tag', 'text_X_ev_nb');
+tey1 = findobj(gcf,'Tag', 'text_ev_y_1');
+tey2 = findobj(gcf,'Tag', 'text_ev_y_2');
+tey3 = findobj(gcf,'Tag', 'text_Y_ev_pct');
+tey4 = findobj(gcf,'Tag', 'text_Y_ev_nb');
+tez1 = findobj(gcf,'Tag', 'text_ev_z_1');
+tez2 = findobj(gcf,'Tag', 'text_ev_z_2');
+tez3 = findobj(gcf,'Tag', 'text_Z_ev_pct');
+tez4 = findobj(gcf,'Tag', 'text_Z_ev_nb');
 
 % si il n'y a pas d'events
 if isempty(ex)
@@ -625,10 +632,10 @@ function Extract_newHC_badsegments(gcbo, eventdata, handles)
 global Header
 
 % bad segments
-px = findobj('Tag', 'plot_D1');
-py = findobj('Tag', 'plot_D2');
-pz = findobj('Tag', 'plot_D3');
-g = findobj('Tag', 'D_chg_delta_mov');
+px = findobj(gcf,'Tag', 'plot_D1');
+py = findobj(gcf,'Tag', 'plot_D2');
+pz = findobj(gcf,'Tag', 'plot_D3');
+g = findobj(gcf,'Tag', 'D_chg_delta_mov');
 
 inter_good = [0 str2num(g.String)];
 
@@ -650,19 +657,37 @@ clear px py pz g inter_good x_seuil y_seuil z_seuil
 write_Badsegments(Header, badSegments)
 
 % coils
-cxn = findobj('Tag', 'chg_meanref_X_nasio');
-cxl = findobj('Tag', 'chg_meanref_X_eleft');
-cxr = findobj('Tag', 'chg_meanref_X_erigh');
-cyn = findobj('Tag', 'chg_meanref_Y_nasio');
-cyl = findobj('Tag', 'chg_meanref_Y_eleft');
-cyr = findobj('Tag', 'chg_meanref_Y_erigh');
-czn = findobj('Tag', 'chg_meanref_Z_nasio');
-czl = findobj('Tag', 'chg_meanref_Z_eleft');
-czr = findobj('Tag', 'chg_meanref_Z_erigh');
+% % Looks for reference coordinates in the first figure
+% cxn = findobj('Tag', 'chg_meanref_X_nasio');
+% cxl = findobj('Tag', 'chg_meanref_X_eleft');
+% cxr = findobj('Tag', 'chg_meanref_X_erigh');
+% cyn = findobj('Tag', 'chg_meanref_Y_nasio');
+% cyl = findobj('Tag', 'chg_meanref_Y_eleft');
+% cyr = findobj('Tag', 'chg_meanref_Y_erigh');
+% czn = findobj('Tag', 'chg_meanref_Z_nasio');
+% czl = findobj('Tag', 'chg_meanref_Z_eleft');
+% czr = findobj('Tag', 'chg_meanref_Z_erigh');
+% 
+% dewar.nas = [Header.start_pos.nas(1)+str2double(cxn.String) Header.start_pos.nas(2)+str2double(cyn.String) Header.start_pos.nas(3)+str2double(czn.String)];
+% dewar.lpa = [Header.start_pos.lpa(1)+str2double(cxl.String) Header.start_pos.lpa(2)+str2double(cyl.String) Header.start_pos.lpa(3)+str2double(czl.String)];
+% dewar.rpa = [Header.start_pos.rpa(1)+str2double(cxr.String) Header.start_pos.rpa(2)+str2double(cyr.String) Header.start_pos.rpa(3)+str2double(czr.String)];
 
-dewar.nas = [Header.start_pos.nas(1)+str2double(cxn.String) Header.start_pos.nas(2)+str2double(cyn.String) Header.start_pos.nas(3)+str2double(czn.String)];
-dewar.lpa = [Header.start_pos.lpa(1)+str2double(cxl.String) Header.start_pos.lpa(2)+str2double(cyl.String) Header.start_pos.lpa(3)+str2double(czl.String)];
-dewar.rpa = [Header.start_pos.rpa(1)+str2double(cxr.String) Header.start_pos.rpa(2)+str2double(cyr.String) Header.start_pos.rpa(3)+str2double(czr.String)];
+% Looks for reference coordinates in figure's UserData
+meanref = get(gcf,'UserData');
+cxn = meanref.X(1);
+cxl = meanref.X(2);
+cxr = meanref.X(3);
+cyn = meanref.Y(1);
+cyl = meanref.Y(2);
+cyr = meanref.Y(3);
+czn = meanref.Z(1);
+czl = meanref.Z(2);
+czr = meanref.Z(3);
+
+dewar.nas = [Header.start_pos.nas(1)+cxn, Header.start_pos.nas(2)+cyn, Header.start_pos.nas(3)+czn];
+dewar.lpa = [Header.start_pos.lpa(1)+cxl, Header.start_pos.lpa(2)+cyl, Header.start_pos.lpa(3)+czl];
+dewar.rpa = [Header.start_pos.rpa(1)+cxr, Header.start_pos.rpa(2)+cyr, Header.start_pos.rpa(3)+czr];
+
 
 % calcul de la matrice de passage
 % compute the direction of the head coordinate axes in dewar coordinates

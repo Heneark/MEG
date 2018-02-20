@@ -14,7 +14,7 @@ sys.path.append("/dycog/meditation/ERC/Analyses/MEG/code/")
 from header import *
 #==============================================================================
 
-def update(task, subjects=None, data_type = 'Evoked'):
+def update(task, subjects=None, data_type = 'Evoked', precision='5mm'):
     """Update .fif files according to .hc files in HC_for_coreg directory.
     Parameters:
         subjects: list of the subjects, default to all subjects available for the task.
@@ -38,8 +38,10 @@ def update(task, subjects=None, data_type = 'Evoked'):
             
         for blk in blocks:
             
-            # Find the .hc file corresponding to this block    
-            hc_fname = glob.glob(op.join(hc_path, '*_{}*.hc'.format(blk)))[0]
+            # Find the .hc file corresponding to this block
+            hc_fname = glob.glob(op.join(hc_path, '{}*_{}*.hc'.format(precision,blk)))[0]
+#            bs_fname = glob.glob(op.join(hc_path, '{}*_{}*_bads.segments'.format(precision,blk)))[0]
+#            bad_segments = pd.read_table(bs_fname, sep='\t\t', header=None)
             
             # Read and load the content of the .hc file    
         #==============================================================================
@@ -165,7 +167,10 @@ def update(task, subjects=None, data_type = 'Evoked'):
                             
                 #==============================================================================   
                 
-                
+#                for i in range(len(bad_segments)):
+#                    events = data.events[:,0]/data.info['sfreq'] #extract event timing
+#                    data.drop(np.logical_and(bad_segments.iloc[i][1] < events + data.times[-1], events + data.times[0] < bad_segments.iloc[i][2]), reason = 'head_movement')
+#                    #reject the epoch if it ends after the beginning of the bad segment, and starts before the end of the bad segment
                 
                 #==============================================================================
                 # SAVE TO FILE (OVERWRITE)    

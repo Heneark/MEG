@@ -11,6 +11,10 @@ function Adjust_Head_Pos_3DirbyCoil(DSpath)
 % % necessaire pour les fonction d'exportation CTF
 % 
 % MAJ
+% - 20/02/2018 Oussama Abdoun
+%     Les évènements sont lus sur le CTF channel par défaut (cf.
+%     radiobutton correspondant)
+%
 % - 15/07/15    RB
 %     ajout des ZOOM
 %
@@ -509,7 +513,7 @@ f_event=figure('Position', [500 500 500 500], 'MenuBar', 'none', 'Tag', 'Menu_ev
 uicontrol('Parent', f_event, 'Style', 'text', 'String', 'Import events from:',...
     'Position', [175 450 150 20], 'FontSize', 12, 'FontWeight','bold',...
     'Units', 'normalized', 'Callback', '');
-uicontrol('Parent', f_event, 'Style', 'radiobutton', 'String', 'CTF channel',...
+uicontrol('Parent', f_event, 'Style', 'radiobutton', 'String', 'CTF channel', 'Value',1,...
     'Position', [100 420 100 20], 'FontSize', 12, 'FontWeight','bold',...
     'Tag', 'Select_CTF_chan', 'Units', 'normalized', 'Callback', @Action_menu_event);
 uicontrol('Parent', f_event, 'Style', 'radiobutton', 'String', 'Files',...

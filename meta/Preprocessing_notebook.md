@@ -216,3 +216,130 @@ Subject 094
 ### Reboot of the storage space => lost previous run
 
 It is unclear how find_bads_eog is scoring / classifying components => EOG_threshold set to 5 for next run, with number of EOG components limited to 1 or 2.
+
+
+19/02/2018
+==========
+### Epoch rejection: mag = 3500 fT; ICA rejection: mag = 7000 fT; ECG threshold = 0.2 with max 3 components; EOG threshold = 5 with min 1 component and max 2 components
+
+002
+---
+Weak 3rd ECG component (`RS_01`: ECG7, `FA_02`: ECG8, `OM_04`: ECG22)
+
+
+004
+---
+(Still no ECG)
+
+
+007
+---
+ECG artifact is not entirely erased (see overlay).
+
+
+010
+---
+`RS_01`, `FA_04`: ECG component T kept
+
+
+012
+---
+`RS_01`: 2nd weird EOG component
+
+`OM_03`: weird EOG
+
+
+014
+---
+`OM_03`: **only 3 EOG events**
+
+`FA_06`: 2nd EOG component (EOG1) for 2 events only
+
+
+016
+---
+(3 ECG components, `OM_02`-ECG25 seems ok)
+
+
+018
+---
+Nothing to report
+
+
+028
+---
+Weirdly "forked" QRS ECG components
+
+(3 ECG components, `RS_01`-ECG49 seems ok)
+
+
+030
+---
+More than 3 ECG components, the weak ones kept are weird.
+
+`RS_01`: 5 ECG components, 2 dropped, ECG3 is weird
+
+`FA_02`: same with ECG1
+
+`OM_06`: 4 ECG components, 1 dropped, ECG0&6 are weird
+
+`OM_10`: same with ECG1&2
+
+`FA_14`: same with ECG2&20
+
+
+032
+---
+`FA_02`: **only 8 EOG events** (3 ECG components, ECG36 seems ok)
+
+
+### EOG bug => re-run from subject 037
+
+037
+---
+### ECG artifacts not removed (see overlay)
+
+
+042
+---
+(`FA_06`: 3 ECG components, ECG1 seems ok)
+
+
+050
+---
+**Pulse > 90bpm**
+
+
+053
+---
+**>100 epochs dropped**
+
+
+063
+---
+`OM_14`: **no ECG component**
+
+
+069
+---
+**Pulse > 90bpm**
+
+
+089
+---
+**Pulse > 90bpm**
+
+
+090
+---
+`FA_10`: **>100 epochs dropped**
+
+
+094
+---
+**>100 epochs dropped**
+
+
+096
+---
+`RS_02`: **>100 epochs dropped**

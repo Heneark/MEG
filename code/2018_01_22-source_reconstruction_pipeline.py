@@ -42,6 +42,7 @@ import morphing
 
 
 #preproc.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
+subjects = subjects[subjects.index('037'):]
 for sub in subjects:
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):
@@ -68,7 +69,7 @@ for sub in subjects:
 #COREGISTRATION: MATLAB
 #==============================================================================
 # Adjust_Head_Pos_3DirbyCoil.m
-# # Select which block to coregister --> new .hc files
+# # Select which block to coregister --> Analyses/<task>/<meg>/HC_for_coreg/<subject>/<range>_<blocki_blockj>.hc
 #==============================================================================
 
 #HPI_update.update(task=task, subjects=subjects)
