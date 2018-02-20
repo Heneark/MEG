@@ -42,11 +42,10 @@ import morphing
 
 
 #preproc.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
-subjects = subjects[subjects.index('037'):]
 for sub in subjects:
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):
-            preproc.epoch(task, sub, state, blk, overwrite_ica=True, fit_ica=True, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection={'mag':3500e-15})
+            preproc.epoch(task, sub, state, blk, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection={'mag':3500e-15})
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================

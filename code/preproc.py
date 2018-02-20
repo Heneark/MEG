@@ -81,13 +81,14 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
                 ECG_channel = chan
     
     raw.set_channel_types({ECG_channel:'ecg', EOG_channel:'eog', stim_channel:'stim'})
-    raw.pick_types(meg=True, ref_meg=False, ecg=True, eog=True, exclude='bads')
     
     # Crop recording
     events = mne.find_events(raw)
     start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0
     end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[1][0]] > 300 else None
     raw.crop(tmin=start, tmax=end)
+    
+    raw.pick_types(meg=True, ref_meg=False, ecg=True, eog=True, exclude='bads')
     
     # Filter for ICA
     raw.filter(l_freq=1, h_freq=40, fir_design='firwin', n_jobs=4)
