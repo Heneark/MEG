@@ -251,7 +251,7 @@ ECG artifact is not entirely erased (see overlay).
 
 014
 ---
-`OM_03`: **only 3 EOG events**
+`OM_03`: only 3 EOG events --> actually None (or one the 1st second). EOG100 (2nd) is not EOG
 
 `FA_06`: 2nd EOG component (EOG1) for 2 events only
 
@@ -290,7 +290,7 @@ More than 3 ECG components, the weak ones kept are weird.
 
 032
 ---
-`FA_02`: **only 8 EOG events** (3 ECG components, ECG36 seems ok)
+`FA_02`: only 8 EOG events --> actually 4 (3 ECG components, ECG36 seems ok)
 
 
 ### EOG bug => re-run from subject 037
@@ -307,12 +307,30 @@ More than 3 ECG components, the weak ones kept are weird.
 
 050
 ---
-**Pulse > 90bpm**
+Pulse > 90bpm (checked, OK)
+
+`FA_02`: not a single blink
+
+
+052
+---
+Nothing to report
 
 
 053
 ---
-**>100 epochs dropped**
+>100 epochs dropped: 0.5 Hz highpass not enough
+
+>3 ECG components: ECG waves
+
+`FA_02`: only 7 blinks (checked)
+
+`OM_06`: only 3 blinks (checked)
+
+
+054
+---
+
 
 
 063
@@ -323,6 +341,16 @@ More than 3 ECG components, the weak ones kept are weird.
 069
 ---
 **Pulse > 90bpm**
+
+
+070
+---
+2 EOG, 3 ECG components: OK
+
+
+083
+---
+`FA_06`: 2nd EOG component (EOG2) for 3 events only
 
 
 089
@@ -342,4 +370,4 @@ More than 3 ECG components, the weak ones kept are weird.
 
 096
 ---
-`RS_02`: **>100 epochs dropped**
+`RS_02`: **>100 epochs dropped** (re-run to test epoch ref_meg fix)

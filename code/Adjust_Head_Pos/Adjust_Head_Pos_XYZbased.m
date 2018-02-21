@@ -36,6 +36,11 @@ function Adjust_Head_Pos_XYZbased(Header, meanref)
 %       distances) sont stockées dans UserData de la figure, au lieu d'être
 %       lues dans les champs éditables de la Figure 1
 %       Désactivation du bouton "Extract" pour éviter d'écraser le .hc d'origine
+%
+% - 21/02/2018  Benjamin ADOR
+%       Avec 'Save Head Coils AND BadSegments as...',
+%       <filename>-bad.segments<block> est sauvé automatiquement au même
+%       endroit que le .hc
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Init
@@ -654,8 +659,6 @@ z_seuil(pz.YData>inter_good(2)) = 0;
 badSegments = unique([find(x_seuil==0) find(y_seuil==0) find(z_seuil==0)]);
 clear px py pz g inter_good x_seuil y_seuil z_seuil
 
-write_Badsegments(Header, badSegments)
-
 % coils
 % % Looks for reference coordinates in the first figure
 % cxn = findobj('Tag', 'chg_meanref_X_nasio');
@@ -727,7 +730,8 @@ clear cx* cy* cz*
 if handles
     write_HC(Header, dewar, head)
 else
-    write_HC_as(Header, dewar, head)
+    newhcfile = write_HC_as(Header, dewar, head);
+    write_Badsegments(Header, badSegments, strrep(newhcfile, '.hc', '-bad.segments'))
 end
 
 % % nettoyage brutal
@@ -738,7 +742,7 @@ end
 
 
 
-function write_HC_as(Header, dewar, head)
+function newhcfile = write_HC_as(Header, dewar, head)
 
 if ispc
     separator = '\';
@@ -751,9 +755,10 @@ end
 %[filename, filepath] = uiputfile('*.hc','Save Head Coordinates as...', [filepath, separator, filename, '.hc']);
 [filename, filepath] = uiputfile('*.hc','Save Head Coordinates as...', ['/dycog/meditation/ERC/Analyses/SMEG/meg/HC_for_coreg', separator, filename, '.hc']);
 
-fprintf('save file :\n\t\t%s\n', fullfile(filepath,filename))
+newhcfile = fullfile(filepath,filename);
+fprintf('save file :\n\t\t%s\n', newhcfile)
 
-fid = fopen(fullfile(filepath,filename), 'w');
+fid = fopen(newhcfile, 'w');
 fprintf(fid, 'standard nasion coil position relative to dewar (cm):\n');
 fprintf(fid, '\tx = %s\n\ty = %s\n\tz = %s\n', num2str(Header.HC_raw{1}.standard.nas(1)), num2str(Header.HC_raw{1}.standard.nas(2)), num2str(Header.HC_raw{1}.standard.nas(3)));
 fprintf(fid, 'standard left ear coil position relative to dewar (cm):\n');
@@ -829,7 +834,7 @@ end
 clear xi_file
 
 
-function write_Badsegments(Header, badSegments)
+function write_Badsegments(Header, badSegments, file)
 
 if ispc
     separator = '\';
@@ -839,30 +844,32 @@ end
 
 for xi_file = 1 : length(Header.filename)
 
-    % sauvegarde du vieux
-    new_dir = clock;
-    new_dir = [date, '_', num2str(new_dir(4)), 'm', num2str(new_dir(5)), 'm'];
-    new_dir = [Header.filename{xi_file}, separator, 'BK_BadSegments_', new_dir];
-    mkdir(new_dir)
-    clear time
+    filename = strcat(file, Header.filename{xi_file}(end-4:end-3));
     
-    if ispc
-        copy_BS_file = ls([Header.filename{xi_file}, separator, '*bad.segments*']);
-        for xi_cp = 1 : size(copy_BS_file,1)
-            copyfile([Header.filename{xi_file} separator deblank(copy_BS_file(xi_cp, :))], [ new_dir, separator ])
-        end
-    else
-        dir_res = dir([Header.filename{xi_file}, separator, '*bad.segments*']);
-        copy_BS_file = {};
-        for xi_dir = 1 : length(dir_res)
-            copy_BS_file{xi_dir} = [Header.filename{xi_file} separator dir_res(xi_dir).name];
-        end
-        clear xi_dir
-        for xi_cp = 1 : size(copy_BS_file,2)
-            copyfile(copy_BS_file{xi_cp}, [ new_dir, separator ])
-        end
-        
-    end
+%     % sauvegarde du vieux
+%     new_dir = clock;
+%     new_dir = [date, '_', num2str(new_dir(4)), 'm', num2str(new_dir(5)), 'm'];
+%     new_dir = [Header.filename{xi_file}, separator, 'BK_BadSegments_', new_dir];
+%     mkdir(new_dir)
+%     clear time
+%     
+%     if ispc
+%         copy_BS_file = ls([Header.filename{xi_file}, separator, '*bad.segments*']);
+%         for xi_cp = 1 : size(copy_BS_file,1)
+%             copyfile([Header.filename{xi_file} separator deblank(copy_BS_file(xi_cp, :))], [ new_dir, separator ])
+%         end
+%     else
+%         dir_res = dir([Header.filename{xi_file}, separator, '*bad.segments*']);
+%         copy_BS_file = {};
+%         for xi_dir = 1 : length(dir_res)
+%             copy_BS_file{xi_dir} = [Header.filename{xi_file} separator dir_res(xi_dir).name];
+%         end
+%         clear xi_dir
+%         for xi_cp = 1 : size(copy_BS_file,2)
+%             copyfile(copy_BS_file{xi_cp}, [ new_dir, separator ])
+%         end
+%         
+%     end
     
 %     copy_BS_file = ls([Header.filename{xi_file}, separator, '*bad.segments*']);
 %     
@@ -874,7 +881,7 @@ for xi_file = 1 : length(Header.filename)
 %         end
 %     end
     
-    clear xi_cp copy_BS_file
+%     clear xi_cp copy_BS_file
     
 
     win_bs = [];
@@ -930,10 +937,10 @@ for xi_file = 1 : length(Header.filename)
     end
     
     % sauvegarde du nouveau badsegments
-    fprintf('Save file :\n\t\t%s\n', [Header.filename{xi_file}, separator, 'bad.segments'])
-    fid = fopen([Header.filename{xi_file}, separator, 'bad.segments'], 'w');
+    fprintf('Save file :\n\t\t%s\n', filename)
+    fid = fopen(filename, 'w');
     for xi_bs = 1 : size(new_bs,1)
-        fprintf(fid, '1\t\t%s\t\t%s\n', num2str(new_bs(xi_bs,1)/Header.sample_rate), num2str(new_bs(xi_bs,2)/Header.sample_rate));
+        fprintf(fid, '%s\t%s\n', num2str(new_bs(xi_bs,1)/Header.sample_rate), num2str(new_bs(xi_bs,2)/Header.sample_rate));
     end
     clear xi_bs
     fclose(fid);

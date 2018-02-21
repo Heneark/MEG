@@ -18,11 +18,12 @@ from header import *
 
 # subject='032'; state='FA'; block='02'; task='SMEG'; n_components=.975
 
-# ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+# # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
 # ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
-# ica.labels_['ecg_scores'][np.where(ica.labels_['ecg_scores']>0.1)]
+# # ica.labels_['ecg_scores'][np.where(ica.labels_['ecg_scores']>0.1)]
 
-# raw, raw_ECG = process(task, subject, state, block, ica=ica, check_ica=True, save_ica=False, high_pass=0.5, low_pass=None)
+# raw, raw_ECG = process(task, subject, state, block, check_ica=False, save_ica=False, ica=None)
+# # eog = raw.copy().pick_types(meg=False, ref_meg=False, eog=True)
 
 # epochs,evoked = epoch(task, subject, state, block, save=False, rejection={'mag':2.5e-12}, tmin=-.5, tmax=.8, baseline=(-.4,-.3), overwrite_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3.5)
 #==============================================================================
