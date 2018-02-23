@@ -19,13 +19,13 @@ task = 'SMEG'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-reject = ['071']
+reject = []
 for sub in reject:
     subjects.remove(sub)
 
-# # Last subject preprocessed: 093
+# # Last subject preprocessed: 073
 # # Future subjects list:
-#subjects = subjects[subjects.index('054')+1:]
+subjects = subjects[subjects.index('73')+1:]
 subjects.sort()
 #==============================================================================
 
@@ -41,7 +41,6 @@ import morphing
 #==============================================================================
 
 
-#preproc.process(tasks=task, states=states, subjects=subjects, run_ICA=False)
 for sub in subjects:
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):
