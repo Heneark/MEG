@@ -330,17 +330,44 @@ Nothing to report
 
 054
 ---
+>3 ECG components: ECG waves
 
+`FA_11`: weak EOG18 -> 7 actual blinks, not very sharp
+
+
+055
+---
+Nothing to report
 
 
 063
 ---
-`OM_14`: **no ECG component**
+`OM_06`: ECG rejection not very effective
+
+`OM_14`: no ECG component -> one at 0.175 threshold (no effect), three at 0.15 (small effect, probably not worth it)
+
+
+064
+---
+Nothing to report
+
+
+068
+---
+Nothing to report
 
 
 069
 ---
-**Pulse > 90bpm**
+Pulse > 90bpm (checked, OK)
+
+ECG waves (theta?)
+
+weak EOG components --> wavy channel
+
+high amplitude alpha
+
+`RS_01`: 3 ECG components
 
 
 070
@@ -348,26 +375,73 @@ Nothing to report
 2 EOG, 3 ECG components: OK
 
 
+073
+---
+very few EOG events (`FA_06`: only 2 actual blinks)
+
+`OM_02`: ECG10 (3rd components) weak and weird
+
+`FA_11`: >3 ECG events, ECG47 weak and weird
+
+
 083
 ---
+>3 ECG components (seems OK)
+
 `FA_06`: 2nd EOG component (EOG2) for 3 events only
+
+
+087
+---
+Nothing to report
 
 
 089
 ---
-**Pulse > 90bpm**
+`RS_02`: >3 ECG components, seems OK
+
+`OM_11` : 3 ECG components, ECG36 is weak and weird
 
 
 090
 ---
-`FA_10`: **>100 epochs dropped**
+>3 ECG components --> ECG waves, noisy components
+
+`FA_10`: >100 epochs dropped --> bad channel 'MLT51-2805' (would also save 37 out of 87 'bad' epochs for `RS_01`)
+
+
+091
+---
+Nothing to report
+
+
+093
+---
+>3 ECG components --> ECG waves
 
 
 094
 ---
-**>100 epochs dropped**
+weak ECG components, ineffective rejection
+
+>100 epochs dropped --> right temporal muscle (=> lowpass?)
 
 
 096
 ---
-`RS_02`: **>100 epochs dropped** (re-run to test epoch ref_meg fix)
+weak ECG components corresponding to ECG noise
+
+`RS_02`: >100 epochs dropped --> high-amplitude noise
+
+
+23/02/2018
+==========
+Finally done checking \o/
+
+Overall, ineffective ICA comes from weak components, decreasing thresholds would not improve artifact detection.
+
+`014/OM_13-EOG100` should not be detected
+
+'ECG waves': 053, 054, 069, 090, 093
+
+Bad data: 037, 053, 069, 090, 094, 096

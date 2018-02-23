@@ -16,7 +16,7 @@ from header import *
 # ECG_threshold=0.2; ECG_max=3; EOG_threshold=5; EOG_min=1; EOG_max=2; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
 # ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'; stim_channel='UPPT001'
 
-# subject='032'; state='FA'; block='02'; task='SMEG'; n_components=.975
+# subject='037'; state='OM'; block='14'; task='SMEG'; n_components=.975
 
 # # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
 # ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
@@ -24,6 +24,7 @@ from header import *
 
 # raw, raw_ECG = process(task, subject, state, block, check_ica=False, save_ica=False, ica=None)
 # # eog = raw.copy().pick_types(meg=False, ref_meg=False, eog=True)
+# # ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
 
 # epochs,evoked = epoch(task, subject, state, block, save=False, rejection={'mag':2.5e-12}, tmin=-.5, tmax=.8, baseline=(-.4,-.3), overwrite_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3.5)
 #==============================================================================
@@ -205,7 +206,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         check_ecg = create_ecg_epochs(raw, reject=ica_rejection)
         ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'])
         if save_ica:
-            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_ecg.pdf'.format(state, block, n_components)), transparent=True)
+            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_ecg.png'.format(state, block, n_components)), transparent=True, dpi=360)
             plt.close()
             for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_ecg*')):
                 os.remove(pic)
@@ -220,7 +221,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         check_eog = create_eog_epochs(raw, reject=ica_rejection)
         ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'])
         if save_ica:
-            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_eog.pdf'.format(state, block, n_components)), transparent=True)
+            plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_eog.png'.format(state, block, n_components)), transparent=True, dpi=360)
             plt.close()
             for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_eog*')):
                 os.remove(pic)
@@ -291,7 +292,8 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
         
         # Rejection
         epochs[epo].plot_drop_log()
-        plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.pdf'.format(epo, state, block)), transparent=True)
+        if save:
+            plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.pdf'.format(epo, state, block)), transparent=True)
         plt.close()
         epochs[epo].drop_bad()
         
@@ -305,8 +307,9 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
 #            evoked[epo].save(evoked_file)
         
         drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
-        with open(drop_log, 'a') as fid:
-            fid.write('{} {} epochs dropped\t{}\n'.format(epochs_file.split('/')[-2:], len(np.array(epochs[epo].drop_log)[np.where(epochs[epo].drop_log)]), rejection))
+        if save:
+            with open(drop_log, 'a') as fid:
+                fid.write('{} {} epochs dropped\t{}\n'.format(epochs_file.split('/')[-2:], len(np.array(epochs[epo].drop_log)[np.where(epochs[epo].drop_log)]), rejection))
         
     return epochs#,evoked
 
