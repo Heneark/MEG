@@ -442,6 +442,34 @@ Overall, ineffective ICA comes from weak components, decreasing thresholds would
 
 `014/OM_13-EOG100` should not be detected
 
-'ECG waves': 053, 054, 069, 090, 093
+'ECG waves': 053, 054, 069, 071, 090, 093
 
 Bad data: 037, 053, 069, 090, 094, 096
+
+
+26/02/2018
+==========
+
+056
+---
+3rd ECG component: some ECG waves
+
+
+067
+---
+Nothing to report
+
+
+071
+---
+>3 ECG components --> ECG waves
+
+
+072
+---
+`FA_16`: ECG rejection not very effective (T component in particular); weird "split" EOG component
+
+095
+---
+No ECG --> use EEG003-2800 instead
+

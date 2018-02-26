@@ -16,7 +16,7 @@ from header import *
 # ECG_threshold=0.2; ECG_max=3; EOG_threshold=5; EOG_min=1; EOG_max=2; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
 # ECG_channel=['EEG062-2800', 'EEG062']; EOG_channel='EOGV'; stim_channel='UPPT001'
 
-# subject='037'; state='OM'; block='14'; task='SMEG'; n_components=.975
+# subject='095'; state='OM'; block='06'; task='SMEG'; n_components=.975
 
 # # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
 # ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
@@ -151,8 +151,10 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     If save_ica, save ICA and ICA plots (deleting previously existing component properties), and write ICA log (default to True).
     If overwrite_ica, artifact detection will be perfomed again even if an ICA file exists (default to False).
     Output:
-        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_ecg.svg'
-        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_eog.svg'
+        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_ecg.png'
+        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_eog.png'
+        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-<properties>_ecg<i>.pdf'
+        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-<properties>_eog<j>.pdf'
     Parameters (see mne.filter):
         ica: ICA object. If None (default), will be loaded according to previous parameters. ICA parameters:
             ica_rejection: epoch rejection threshold (default to 4000 fT for magnetometers)
@@ -261,8 +263,6 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
         tmin, tmax, baseline: epoching parameters
     """
     # Load data
-    raw_path = op.join(Analysis_path, task, 'meg', 'Preprocessed_raw', subject)
-    raw_file = op.join(raw_path, '{}_{}-raw.fif'.format(state, block))
     if not raw:
         raw, raw_ECG = process(task, subject, state, block, overwrite_ica=overwrite_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, notch=notch, high_pass=high_pass, low_pass=low_pass, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
     
