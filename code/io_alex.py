@@ -8,7 +8,7 @@ Created on Wed Sep 21 13:30:06 2016
 
 import sys
 sys.path.append("/dycog/meditation/ERC/Analyses/SMEG/code/")
-from csv_io_alex import *
+from csv_io import *
 import mne
 import numpy as np
 import os

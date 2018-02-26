@@ -40,7 +40,7 @@ import source_reconstruction
 import morphing
 #==============================================================================
 
-
+subjects=['095']
 for sub in subjects:
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):

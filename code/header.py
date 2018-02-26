@@ -48,5 +48,5 @@ os.environ["SUBJECTS_DIR"] = "/dycog/meditation/ERC/Analyses/ANAT/T1/FreeSurfer/
 # CUSTOM SCRIPTS WITH PATH BASES
 #==============================================================================
 from io_alex import *
-from csv_io_alex import *
+from csv_io import *
 #==============================================================================
