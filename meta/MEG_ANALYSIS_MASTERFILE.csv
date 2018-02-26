@@ -2,7 +2,7 @@
 SUBJECT;;;;;;;;;EYES;;CORRUGATORS;;TRAPEZIUS;;HEART;;;RESPI;EGG;;;;;PHENO;RS;;;FA;;;OP;;;;CALIBRATION;PHENO;RHYTHM ENTRAINEMENT;;PREPROC;MMN_MAIN;;;;MMN_COLOR;;MMN_FREQUENCY;;;;
 group;id;nifti;coreg;recon;bem_ico4;src_surf_ico4;src_vol_6.2;;eogH_chan;eogV_chan;emgCorr_chan;emgCorr_baseline;emgTrap_chan;emgTrap_baseline;ecg_chan;ecg_erp;ecg_src;respi_chan;egg;egg_chans;egg_maxchan;egg_phase;;pheno_states;rs;rs_preproc;rs_src;fa;fa_preproc;fa_src;op;op_preproc;op_src;;calib;pheno_mimosa;behav;psd_delta;preproc;mmn_main_erp;mmn_main_src;mmn_main_learnmod;mmn_main_dcm;mmn_col_erp;mmn_col_src;mmn_freq_erp;mmn_freq_src;;;
 #;000;0 or 1;;0 or 1 or -1;0 or 1 or -1;0 or 1;0 or 1;;EOGH;EOGV;;;EEG059;17 380 395;EEG062;;ico4;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;001;;;;;;;;;;;;;;;;ico4,oct6;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;001;;;;;;;;;;;;;;;;ico4|oct6;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;002;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;003;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;004;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
