@@ -471,5 +471,7 @@ Nothing to report
 
 095
 ---
-No ECG --> use EEG003-2800 instead
+No ECG --> use EEG008-2800 instead (although EEG003 has more ECG amplitude)
+
+`FA_02`: >3 ECG components --> maybe some weird T waves
 

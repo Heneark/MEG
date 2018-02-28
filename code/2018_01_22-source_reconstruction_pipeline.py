@@ -23,9 +23,9 @@ reject = []
 for sub in reject:
     subjects.remove(sub)
 
-# # Last subject preprocessed: 073
+# # Last subject preprocessed: 095
 # # Future subjects list:
-subjects = subjects[subjects.index('073')+1:]
+#subjects = subjects[subjects.index('095')+1:]
 subjects.sort()
 #==============================================================================
 
@@ -40,11 +40,11 @@ import source_reconstruction
 import morphing
 #==============================================================================
 
-subjects=['095']
+
 for sub in subjects:
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):
-            preproc.epoch(task, sub, state, blk, overwrite_ica=True, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection={'mag':3500e-15})
+            preproc.epoch(task, sub, state, blk, save_t_timing=True, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection={'mag':3500e-15})
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================

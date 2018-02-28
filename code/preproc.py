@@ -15,7 +15,7 @@ from header import *
 # method='fastica'; notch=np.arange(50,301,50); high_pass=.5; low_pass=None
 # ECG_threshold=0.2; ECG_max=3; EOG_threshold=5; EOG_min=1; EOG_max=2; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
 
-# subject='095'; state='OM'; block='06'; task='SMEG'; n_components=.975
+# subject='055'; state='OM'; block='06'; task='SMEG'; n_components=.975
 
 # # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
 # ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
@@ -27,6 +27,46 @@ from header import *
 
 # epochs,evoked = epoch(task, subject, state, block, save=False, rejection={'mag':2.5e-12}, tmin=-.5, tmax=.8, baseline=(-.4,-.3), overwrite_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3.5)
 #==============================================================================
+
+
+def t_detector(task, subject, state, block, raw, event_id=333, l_freq=5, h_freq=35, T_window=[.1,.5], save=True):
+    """
+    From raw data containing at least the ECG channel, returns events corresponding to T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
+    """
+    # Save T peak timing
+    timing_file = op.join(Analysis_path, task, 'meg', 'Epochs', 'T_timing.tsv')
+    if save and not op.isfile(timing_file):
+        with open(timing_file, 'w') as fid:
+            fid.write('subject\tblock\tstate\tR_peak\tT_delay\n')
+    
+    # Pick ECG and filter
+    ECG_channel = get_chan_name(subject, 'ecg_chan', raw)
+    raw.pick_channels([ECG_channel])
+    raw.set_channel_types({ECG_channel:'eeg'})
+    raw.filter(l_freq=l_freq, h_freq=h_freq, fir_design='firwin')
+    raw.set_channel_types({ECG_channel:'ecg'})
+    
+    # Find R peak events
+    R_epochs = create_ecg_epochs(raw)
+    data = R_epochs.get_data()[:, 0, :]
+    T_window_i = R_epochs.time_as_index(T_window)
+    R_time_i = R_epochs.time_as_index([0])
+    R_sign = np.sign(data[:, R_time_i])
+    
+    # Find T peak timing
+    T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
+    if save:
+        T_times = R_epochs.times[T_times_i]
+        for i in range(len(T_times)):
+            with open(timing_file, 'a') as fid:
+                fid.write(subject +'\t'+ block +'\t'+ state +'\t'+ np.round(raw.times[R_epochs.events[i,0]],3) +'\t'+ np.round(T_times[i], 3))
+    
+    # Return T peak events
+    T_events = R_epochs.events
+    T_events[:,0] += T_times_i
+    T_events[:,2] = event_id
+    
+    return T_events
 
 
 # # /!\ Custom attributes (e.g., ica.scores_) are not kept upon .save(), which calls _write_ica() whose dict ica_misc is not editable on call.
@@ -221,7 +261,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     return raw, raw_ECG
 
 
-def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5e-12}, name=['ECG_included','ECG_excluded'], tmin=-.5, tmax=.8, baseline=(-.4,-.3), overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3):
+def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5e-12}, name=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], save_t_timing=False, tmin=-.5, tmax=.8, baseline=(-.4,-.3), check_ica=False, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3):
     """
     Epoch preprocessed raw data and average to evoked response, and return them.
     Output:
@@ -238,13 +278,14 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
                 ECG_threshold: ECG artifact detection threshold (mne default to 0.25)
                 ECG_threshold: ECG artifact detection threshold (mne default to 3.0, increased to 3.5)
         rejection: epoch rejection threshold (default to 2500 fT for magnetometers)
-        name: list of events to epoch (only 'ECG_included' and 'ECG_excluded' are supported yet)
+        name: list of events to epoch
         tmin, tmax, baseline: epoching parameters
     """
     # Load data
     if not raw:
-        raw, raw_ECG = process(task, subject, state, block, overwrite_ica=overwrite_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, notch=notch, high_pass=high_pass, low_pass=low_pass, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
+        raw, raw_ECG = process(task, subject, state, block, check_ica=check_ica, overwrite_ica=overwrite_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, notch=notch, high_pass=high_pass, low_pass=low_pass, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
     
+    T_events = t_detector(task, subject, state, block, raw, save=save_t_timing)
     picks = mne.pick_types(raw.info, meg=True, ecg=True, eog=True, stim=True, exclude='bads')
     
     epochs = dict()
@@ -264,16 +305,26 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
 #        evoked_file = op.join(evoked_path, '{}-{}_{}-ave.fif'.format(epo, state, block))
         
         # Epoch
-        if epo == 'ECG_included':
-            epochs[epo] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
-        if epo == 'ECG_excluded':
+        if epo == 'R_ECG_excluded':
             epochs[epo] = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+        
+        elif epo == 'T_ECG_excluded':
+            epochs[epo] = mne.Epochs(raw, T_events, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+        
+        elif epo == 'R_ECG_included':
+            epochs[epo] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+        
+        elif epo == 'T_ECG_included':
+            epochs[epo] = mne.Epochs(raw_ECG, T_events, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+        
+        else:
+            raise ValueError("Epoch {} undefined.".format(epo))
         
         # Rejection
         epochs[epo].plot_drop_log()
         if save:
             plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.pdf'.format(epo, state, block)), transparent=True)
-        plt.close()
+            plt.close()
         epochs[epo].drop_bad()
         
         # Save epochs
