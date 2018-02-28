@@ -59,7 +59,7 @@ def t_detector(task, subject, state, block, raw, event_id=333, l_freq=5, h_freq=
         T_times = R_epochs.times[T_times_i]
         for i in range(len(T_times)):
             with open(timing_file, 'a') as fid:
-                fid.write(subject +'\t'+ block +'\t'+ state +'\t'+ np.round(raw.times[R_epochs.events[i,0]],3) +'\t'+ np.round(T_times[i], 3))
+                fid.write("{}\t{}\t{}\t{}\t{}\n".format(subject, block, state, np.round(raw.times[R_epochs.events[i,0]],3), np.round(T_times[i], 3)))
     
     # Return T peak events
     T_events = R_epochs.events
