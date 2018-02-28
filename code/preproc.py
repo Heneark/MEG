@@ -290,7 +290,7 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
     if not raw:
         raw, raw_ECG = process(task, subject, state, block, check_ica=check_ica, overwrite_ica=overwrite_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, notch=notch, high_pass=high_pass, low_pass=low_pass, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
     
-    T_events = t_detector(task, subject, state, block, raw, save=save_t_timing)
+    T_events = t_detector(task, subject, state, block, raw.copy(), save=save_t_timing)
     picks = mne.pick_types(raw.info, meg=True, ecg=True, eog=True, stim=True, exclude='bads')
     
     epochs = dict()
