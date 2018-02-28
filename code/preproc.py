@@ -323,11 +323,11 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
             raise ValueError("Epoch {} undefined.".format(epo))
         
         # Rejection
+        epochs[epo].drop_bad()
         epochs[epo].plot_drop_log()
         if save:
             plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.pdf'.format(epo, state, block)), transparent=True)
             plt.close()
-        epochs[epo].drop_bad()
         
         # Save epochs
         if save:
