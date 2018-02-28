@@ -281,6 +281,11 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
         name: list of events to epoch
         tmin, tmax, baseline: epoching parameters
     """
+    # Save path
+    epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
+    if not op.exists(epochs_path):
+        os.makedirs(epochs_path)
+    
     # Load data
     if not raw:
         raw, raw_ECG = process(task, subject, state, block, check_ica=check_ica, overwrite_ica=overwrite_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, notch=notch, high_pass=high_pass, low_pass=low_pass, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
@@ -293,10 +298,7 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
     
     for epo in name:
         
-        # Save paths
-        epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
-        if not op.exists(epochs_path):
-            os.makedirs(epochs_path)
+        # Save file
         epochs_file = op.join(epochs_path, '{}-{}_{}-epo.fif'.format(epo, state, block))
         
 #        evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
