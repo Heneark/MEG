@@ -8,14 +8,14 @@ Created on Wed May 17 15:22:13 2017
 #==============================================================================
 from header import *
 #==============================================================================
-
+warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 # MANUAL EXECUTION
 #==============================================================================
 # method='fastica'; notch=np.arange(50,301,50); high_pass=.5; low_pass=None
 # ECG_threshold=0.2; ECG_max=3; EOG_threshold=5; EOG_min=1; EOG_max=2; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
 
-# subject='055'; state='OM'; block='06'; task='SMEG'; n_components=.975
+# subject='004'; state='RS'; block='01'; task='SMEG'; n_components=.975
 
 # # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
 # ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
@@ -37,36 +37,48 @@ def t_detector(task, subject, state, block, raw, event_id=333, l_freq=5, h_freq=
     timing_file = op.join(Analysis_path, task, 'meg', 'Epochs', 'T_timing.tsv')
     if save and not op.isfile(timing_file):
         with open(timing_file, 'w') as fid:
-            fid.write('subject\tblock\tstate\tR_peak\tT_delay\n')
+            fid.write('subject\tstate\tblock\tR_peak\tT_delay\n')
     
-    # Pick ECG and filter
+    # Pick ECG
     ECG_channel = get_chan_name(subject, 'ecg_chan', raw)
     raw.pick_channels([ECG_channel])
+    
+    # Set ECG_channel as EEG data and its copy 'ECG' as ECG
+    ecg = raw.copy()
     raw.set_channel_types({ECG_channel:'eeg'})
-    raw.filter(l_freq=l_freq, h_freq=h_freq, fir_design='firwin')
-    raw.set_channel_types({ECG_channel:'ecg'})
+    ecg.rename_channels({ECG_channel:'ECG'})
+    ecg.set_channel_types({'ECG':'ecg'})
+    raw.add_channels([ecg])
+    
+    # Filter EEG as in qrs_detector
+    raw.filter(l_freq=l_freq, h_freq=h_freq, filter_length='10s', l_trans_bandwidth=.5, h_trans_bandwidth=.5, phase='zero-double', fir_window='hann', fir_design='firwin2')
     
     # Find R peak events
     R_epochs = create_ecg_epochs(raw)
-    data = R_epochs.get_data()[:, 0, :]
-    T_window_i = R_epochs.time_as_index(T_window)
-    R_time_i = R_epochs.time_as_index([0])
-    R_sign = np.sign(data[:, R_time_i])
     
     # Find T peak timing
+    R_epochs.pick_channels([ECG_channel])
+    data = R_epochs.get_data()[:, 0, :] #The indices delete the axis=1 that is not used.
+    
+    R_time_i = R_epochs.time_as_index([0])
+    R_sign = np.median(np.sign(data[:, R_time_i]))
+    T_window_i = R_epochs.time_as_index(T_window)
+    
     T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
+    T_times = R_epochs.times[T_times_i]
+    
+    # Save timing of R peaks and delay until T peak (in sec)
     if save:
-        T_times = R_epochs.times[T_times_i]
         for i in range(len(T_times)):
             with open(timing_file, 'a') as fid:
-                fid.write("{}\t{}\t{}\t{}\t{}\n".format(subject, block, state, np.round(raw.times[R_epochs.events[i,0]],3), np.round(T_times[i], 3)))
+                fid.write("{}\t{}\t{}\t{}\t{}\n".format(subject, state, block, np.round(raw.times[R_epochs.events[i,0]],3), np.round(T_times[i], 3)))
     
     # Return T peak events
     T_events = R_epochs.events
     T_events[:,0] += T_times_i
     T_events[:,2] = event_id
     
-    return T_events
+    return T_events,T_times
 
 
 # # /!\ Custom attributes (e.g., ica.scores_) are not kept upon .save(), which calls _write_ica() whose dict ica_misc is not editable on call.
@@ -255,8 +267,11 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     
     # Apply ICA
     raw_ECG = raw.copy()
+    ica.exclude = ica.labels_['eog']
+    ica.apply(raw_ECG)
+    
+    ica.exclude = ica.labels_['ecg'] + ica.labels_['eog']
     ica.apply(raw)
-    ica.apply(raw_ECG, exclude=ica.labels_['eog'])
     
     return raw, raw_ECG
 
@@ -290,7 +305,8 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
     if not raw:
         raw, raw_ECG = process(task, subject, state, block, check_ica=check_ica, overwrite_ica=overwrite_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, notch=notch, high_pass=high_pass, low_pass=low_pass, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
     
-    T_events = t_detector(task, subject, state, block, raw.copy(), save=save_t_timing)
+    T_events,T_times = t_detector(task, subject, state, block, raw.copy(), save=save_t_timing)
+    delay = np.median(T_times)
     picks = mne.pick_types(raw.info, meg=True, ecg=True, eog=True, stim=True, exclude='bads')
     
     epochs = dict()
@@ -311,13 +327,13 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
             epochs[epo] = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
         
         elif epo == 'T_ECG_excluded':
-            epochs[epo] = mne.Epochs(raw, T_events, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+            epochs[epo] = mne.Epochs(raw, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=tuple(np.subtract(baseline, (delay,delay))), picks=picks)
         
         elif epo == 'R_ECG_included':
             epochs[epo] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
         
         elif epo == 'T_ECG_included':
-            epochs[epo] = mne.Epochs(raw_ECG, T_events, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+            epochs[epo] = mne.Epochs(raw_ECG, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=tuple(np.subtract(baseline, (delay,delay))), picks=picks)
         
         else:
             raise ValueError("Epoch {} undefined.".format(epo))

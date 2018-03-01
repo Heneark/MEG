@@ -475,3 +475,12 @@ No ECG --> use EEG008-2800 instead (although EEG003 has more ECG amplitude)
 
 `FA_02`: >3 ECG components --> maybe some weird T waves
 
+
+01/03/2018
+==========
+
+004
+---
+`RS_01`: heartbeat count by eye (420 s): 545 --> 78 bpm
+
+Flat ECG --> epoching either on S peak (2/3) or on T peak (1/3) instead of R.
