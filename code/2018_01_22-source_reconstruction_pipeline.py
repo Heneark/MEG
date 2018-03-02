@@ -19,7 +19,7 @@ task = 'SMEG'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-reject = ['004']
+reject = ['004', '010']
 for sub in reject:
     subjects.remove(sub)
 

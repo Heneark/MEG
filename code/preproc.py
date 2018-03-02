@@ -15,7 +15,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 # method='fastica'; notch=np.arange(50,301,50); high_pass=.5; low_pass=None
 # ECG_threshold=0.2; ECG_max=3; EOG_threshold=5; EOG_min=1; EOG_max=2; rejection={'mag':3.5e-12}; ica_rejection={'mag':7e-12}
 
-# subject='004'; state='RS'; block='01'; task='SMEG'; n_components=.975
+# subject='010'; state='FA'; block='03'; task='SMEG'; n_components=.975
 
 # # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
 # ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
@@ -74,7 +74,7 @@ def t_detector(task, subject, state, block, raw, event_id=333, l_freq=5, h_freq=
                 fid.write("{}\t{}\t{}\t{}\t{}\n".format(subject, state, block, np.round(raw.times[R_epochs.events[i,0]],3), np.round(T_times[i], 3)))
     
     # Return T peak events
-    T_events = R_epochs.events
+    T_events = R_epochs.copy().events
     T_events[:,0] += T_times_i
     T_events[:,2] = event_id
     
