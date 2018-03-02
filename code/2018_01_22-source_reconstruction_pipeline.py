@@ -44,7 +44,7 @@ import morphing
 for sub in subjects:
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):
-            preproc.epoch(task, sub, state, blk, save_t_timing=True, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection={'mag':3500e-15})
+            preproc.epoch(task, sub, state, blk, save_t_timing=True, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection=None, baseline=None)
 
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================

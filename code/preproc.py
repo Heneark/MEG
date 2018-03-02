@@ -34,7 +34,7 @@ def t_detector(task, subject, state, block, raw, event_id=333, l_freq=5, h_freq=
     From raw data containing at least the ECG channel, returns events corresponding to T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
     """
     # Save T peak timing
-    timing_file = op.join(Analysis_path, task, 'meg', 'Epochs', 'T_timing.tsv')
+    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}.tsv'.format(l_freq, h_freq))
     if save and not op.isfile(timing_file):
         with open(timing_file, 'w') as fid:
             fid.write('subject\tstate\tblock\tR_peak\tT_delay\n')
@@ -51,7 +51,8 @@ def t_detector(task, subject, state, block, raw, event_id=333, l_freq=5, h_freq=
     raw.add_channels([ecg])
     
     # Filter EEG as in qrs_detector
-    raw.filter(l_freq=l_freq, h_freq=h_freq, filter_length='10s', l_trans_bandwidth=.5, h_trans_bandwidth=.5, phase='zero-double', fir_window='hann', fir_design='firwin2')
+    if l_freq and h_freq:
+        raw.filter(l_freq=l_freq, h_freq=h_freq, filter_length='10s', l_trans_bandwidth=.5, h_trans_bandwidth=.5, phase='zero-double', fir_window='hann', fir_design='firwin2')
     
     # Find R peak events
     R_epochs = create_ecg_epochs(raw)
@@ -327,13 +328,13 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
             epochs[epo] = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
         
         elif epo == 'T_ECG_excluded':
-            epochs[epo] = mne.Epochs(raw, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=tuple(np.subtract(baseline, (delay,delay))), picks=picks)
+            epochs[epo] = mne.Epochs(raw, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=(tuple(np.subtract(baseline, (delay,delay))) if baseline else None), picks=picks)
         
         elif epo == 'R_ECG_included':
             epochs[epo] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
         
         elif epo == 'T_ECG_included':
-            epochs[epo] = mne.Epochs(raw_ECG, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=tuple(np.subtract(baseline, (delay,delay))), picks=picks)
+            epochs[epo] = mne.Epochs(raw_ECG, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=(tuple(np.subtract(baseline, (delay,delay))) if baseline else None), picks=picks)
         
         else:
             raise ValueError("Epoch {} undefined.".format(epo))
@@ -355,7 +356,7 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
 #            evoked[epo].save(evoked_file)
         
         drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
-        if save:
+        if rejection and save:
             with open(drop_log, 'a') as fid:
                 fid.write('{} {} epochs dropped\t{}\n'.format(epochs_file.split('/')[-2:], len(np.array(epochs[epo].drop_log)[np.where(epochs[epo].drop_log)]), rejection))
         
