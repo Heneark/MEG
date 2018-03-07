@@ -491,3 +491,11 @@ Flat ECG --> epoching either on S peak (2/3) or on T peak (1/3) instead of R.
 `FA_03`: 2 almost simultaneous ECG R events (=bug), leading to twice the same T peak --> not unique events error
 
 This is because the ECG S peak is bigger than the R peak --> wrong epoching
+
+
+07/03/2018
+==========
+
+054
+---
+`OM_15`: right ear moves >0.5cm from the beginning to the end of the block.

@@ -40,7 +40,14 @@ function Adjust_Head_Pos_XYZbased(Header, meanref)
 % - 21/02/2018  Benjamin ADOR
 %       Avec 'Save Head Coils AND BadSegments as...',
 %       <filename>-bad.segments<block> est sauvé automatiquement au même
-%       endroit que le .hc
+%       endroit que le .hc.
+%
+% - 03/03/2018  Benjamin ADOR
+%       En plus, sauvegarde des distances (selon X/Y/Z et par rapport aux
+%       coils) dans <filename>-distances.csv.
+%       <filename> correspond par défaut à
+%       HC_for_coreg/<subject>/<precision>cm_<block>.hc (dossier créé
+%       automatiquement).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Init
@@ -117,6 +124,15 @@ D_eucl_nas    = sqrt((data(:,1)-pos_ref(1)).^2 + (data(:,2)-pos_ref(2)).^2 + (da
 D_eucl_eleft  = sqrt((data(:,4)-pos_ref(4)).^2 + (data(:,5)-pos_ref(5)).^2 + (data(:,6)-pos_ref(6)).^2);
 D_eucl_eright = sqrt((data(:,7)-pos_ref(7)).^2 + (data(:,8)-pos_ref(8)).^2 + (data(:,9)-pos_ref(9)).^2);
 
+% distances.X = D_eucl_X;
+% distances.Y = D_eucl_Y;
+% distances.Z = D_eucl_Z;
+% distances.N = D_eucl_nas;
+% distances.L = D_eucl_eleft;
+% distances.R = D_eucl_eright;
+
+fig_data.meanref = meanref;
+fig_data.distances = table(D_eucl_X, D_eucl_Y, D_eucl_Z, D_eucl_nas, D_eucl_eleft, D_eucl_eright, 'VariableNames',{'X','Y','Z','N','L','R'});
 
 fprintf('\nTrend\n\tX: %s cm\n\tY: %s cm\n\tZ: %s cm\n ', num2str(D_eucl_X(end)-D_eucl_X(1)), num2str(D_eucl_Y(end)-D_eucl_Y(1)), num2str(D_eucl_Z(end)-D_eucl_Z(1)))
 fprintf('\nJump\n\tX: %s cm\n\tY: %s cm\n\tZ: %s cm\n\n ', num2str(max(abs(D_eucl_X))-D_eucl_X(1)), num2str(max(abs(D_eucl_Y))-D_eucl_Y(1)), num2str(max(abs(D_eucl_Z))-D_eucl_Z(1)))
@@ -126,7 +142,7 @@ fprintf('\nJump\n\tX: %s cm\n\tY: %s cm\n\tZ: %s cm\n\n ', num2str(max(abs(D_euc
 y_mean = 0;
 
 GUI.f = figure('Position',[100 100 1000 1000], 'Color',[1 1 1],...
-     'MenuBar','none', 'UserData',meanref);
+     'MenuBar','none', 'UserData',fig_data);
  
 subplot(3,1,1)
 hold on
@@ -642,6 +658,7 @@ py = findobj(gcf,'Tag', 'plot_D2');
 pz = findobj(gcf,'Tag', 'plot_D3');
 g = findobj(gcf,'Tag', 'D_chg_delta_mov');
 
+precision = g.String;
 inter_good = [0 str2num(g.String)];
 
 x_seuil = ones(1, length(px.YData));
@@ -676,7 +693,10 @@ clear px py pz g inter_good x_seuil y_seuil z_seuil
 % dewar.rpa = [Header.start_pos.rpa(1)+str2double(cxr.String) Header.start_pos.rpa(2)+str2double(cyr.String) Header.start_pos.rpa(3)+str2double(czr.String)];
 
 % Looks for reference coordinates in figure's UserData
-meanref = get(gcf,'UserData');
+fig_data = get(gcf,'UserData');
+meanref = fig_data.meanref;
+distances = fig_data.distances;
+
 cxn = meanref.X(1);
 cxl = meanref.X(2);
 cxr = meanref.X(3);
@@ -730,8 +750,9 @@ clear cx* cy* cz*
 if handles
     write_HC(Header, dewar, head)
 else
-    newhcfile = write_HC_as(Header, dewar, head);
+    newhcfile = write_HC_as(Header, dewar, head, precision);
     write_Badsegments(Header, badSegments, strrep(newhcfile, '.hc', '-bad.segments'))
+    save_distances(Header, distances, strrep(newhcfile, '.hc', '-distances.csv'))
 end
 
 % % nettoyage brutal
@@ -742,7 +763,7 @@ end
 
 
 
-function newhcfile = write_HC_as(Header, dewar, head)
+function newhcfile = write_HC_as(Header, dewar, head, precision)
 
 if ispc
     separator = '\';
@@ -750,10 +771,24 @@ else
     separator = '/';
 end
 
-[filepath, filename, ~] = fileparts(Header.filename{1});
+% [filepath, filename, ~] = fileparts(Header.filename{1});
+
+% Set default filename
+subject = split(Header.filename{1}, '/');
+subject = subject{end-1};
+filepath = strcat('/dycog/meditation/ERC/Analyses/SMEG/meg/HC_for_coreg/', subject);
+mkdir(filepath)
+
+filename = strcat(precision, Header.unit);
+for b = 1 : length(Header.filename)
+    block = split(Header.filename{b}, '_');
+    block = extractBefore(block{end},'.ds');
+    filename = strcat(filename, '_', block);
+end
+filename = strcat(filename, '.hc');
 
 %[filename, filepath] = uiputfile('*.hc','Save Head Coordinates as...', [filepath, separator, filename, '.hc']);
-[filename, filepath] = uiputfile('*.hc','Save Head Coordinates as...', ['/dycog/meditation/ERC/Analyses/SMEG/meg/HC_for_coreg', separator, filename, '.hc']);
+[filename, filepath] = uiputfile('*.hc','Save Head Coordinates as...', fullfile(filepath,filename));
 
 newhcfile = fullfile(filepath,filename);
 fprintf('save file :\n\t\t%s\n', newhcfile)
@@ -949,3 +984,31 @@ for xi_file = 1 : length(Header.filename)
 end
 
 
+function save_distances(Header, distances, filename)
+
+if ispc
+    separator = '\';
+else
+    separator = '/';
+end
+
+distances.time = zeros(height(distances),1);
+distances.block = strings(height(distances),1);
+
+time = linspace(0, Header.blockoffset(1)/Header.sample_rate, Header.blockoffset(1)).';
+
+for xi_file = 1 : length(Header.filename)
+    
+    block = split(Header.filename{xi_file}, '_');
+    block = extractBefore(block{end},'.ds');
+    
+    if xi_file == 1
+        distances.block(1:Header.blockoffset(xi_file)) = block;
+        distances.time(1:Header.blockoffset(xi_file)) = time;
+    else
+        distances.block(1+Header.blockoffset(xi_file-1):Header.blockoffset(xi_file)) = block;
+        distances.time(1+Header.blockoffset(xi_file-1):Header.blockoffset(xi_file)) = time;
+    end
+end
+
+writetable(distances(1:round(Header.sample_rate/10):end,:),filename)

@@ -17,6 +17,7 @@ function Adjust_Head_Pos_3DirbyCoil(DSpath)
 %
 % - 15/07/15    RB
 %     ajout des ZOOM
+
 %
 % - 12/11/15    RB
 %     ajout du lancement avec une liste de .ds ? visualiser
@@ -817,7 +818,7 @@ plot_change_meanref(eventdata.Source.Tag(end-6:end));
 % rafraichi l'affichage de la moyenne selon l'axe e le coil selectionn???
 function plot_change_meanref(axe_coil_name)
 
-% quel delat mean ?
+% quel delta mean ?
 delat_mean = findobj('Tag', 'chg_delta_mov');
 
 % quel mean ref ?
