@@ -753,6 +753,7 @@ else
     newhcfile = write_HC_as(Header, dewar, head, precision);
     write_Badsegments(Header, badSegments, strrep(newhcfile, '.hc', '-bad.segments'))
     save_distances(Header, distances, strrep(newhcfile, '.hc', '-distances.csv'))
+    save_coil_proportions(Header, dewar, head, strrep(newhcfile, '.hc', '-coil_proportions.csv'));
 end
 
 % % nettoyage brutal
@@ -1012,3 +1013,22 @@ for xi_file = 1 : length(Header.filename)
 end
 
 writetable(distances(1:round(Header.sample_rate/10):end,:),filename)
+
+
+function save_coil_proportions(Header, dewar, filename)
+
+coil_prop = table();
+coil_prop.Distance_cm = string({'NasionToLeft', 'NasionToRight', 'LeftToRight'}');
+
+coil_prop.Original = [sqrt(sum((Header.HC_raw{1}.standard.nas - Header.HC_raw{1}.standard.lpa).^2)), ...
+    sqrt(sum((Header.HC_raw{1}.standard.nas - Header.HC_raw{1}.standard.rpa).^2)), ...
+    sqrt(sum((Header.HC_raw{1}.standard.lpa - Header.HC_raw{1}.standard.rpa).^2))]';
+
+coil_prop.New = [sqrt(sum((dewar.nas - dewar.lpa).^2)), ...
+    sqrt(sum((dewar.nas - dewar.rpa).^2)), ...
+    sqrt(sum((dewar.lpa - dewar.rpa).^2))]';
+
+coil_prop.Difference = coil_prop.New - coil_prop.Original;
+coil_prop.Ratio = coil_prop.New ./ coil_prop.Original;
+
+writetable(coil_prop,filename)

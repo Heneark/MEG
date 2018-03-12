@@ -136,7 +136,7 @@ end
 clear xi_dsfile
 
 fprintf('Done\n\n')
-fprintf('Total data lenght : %s s\n', num2str(Header.blockoffset(end)/Header.sample_rate))
+fprintf('Total data length : %s s\n', num2str(Header.blockoffset(end)/Header.sample_rate))
 
 % mesure sont en m???tre, transformation en cm
 fprintf('Conversion   m -> cm\n\n')
