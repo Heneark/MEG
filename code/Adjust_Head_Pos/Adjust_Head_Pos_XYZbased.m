@@ -753,7 +753,7 @@ else
     newhcfile = write_HC_as(Header, dewar, head, precision);
     write_Badsegments(Header, badSegments, strrep(newhcfile, '.hc', '-bad.segments'))
     save_distances(Header, distances, strrep(newhcfile, '.hc', '-distances.csv'))
-    save_coil_proportions(Header, dewar, head, strrep(newhcfile, '.hc', '-coil_proportions.csv'));
+    save_coil_proportions(Header, dewar, strrep(newhcfile, '.hc', '-coil_proportions.csv'));
 end
 
 % % nettoyage brutal
