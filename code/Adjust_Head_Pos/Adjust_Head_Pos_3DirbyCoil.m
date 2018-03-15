@@ -33,6 +33,10 @@ function Adjust_Head_Pos_3DirbyCoil(DSpath)
 %     ajout de la possibilite de choisir le channel sur lequel sont codes les events
 %                                         ou bien le fichier contenant les events WARNING ce dernier n'a pas encore ete code
 %     
+% - 15/03/2018  Benjamin ADOR
+%       Ajout du calcul MinMax sur les 3 coils à la fois (MidAll, ne
+%       fonctionne qu'avec "ref on DATA" ; les autres boutons ne marchent
+%       pas non plus avec "ref on HC" de toute façon)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 addpath(genpath('/dycog/matlab/prog/spm12'))
 
@@ -459,14 +463,17 @@ GUI.auto_meanref.median = uicontrol('Style', 'radiobutton', 'String', 'Median', 
 GUI.auto_meanref.minmax = uicontrol('Style', 'radiobutton', 'String', 'MinMax', 'Value', 0,...
     'Position', [150 10 30 20],'Units', 'normalized', 'BackgroundColor', [1 1 1],...
     'Tag', 'meanref_auto_minmax', 'Callback', @select_meanref_auto); 
+GUI.auto_meanref.midall = uicontrol('Style', 'radiobutton', 'String', 'MidAll', 'Value', 0,...
+    'Position', [190 10 30 20],'Units', 'normalized', 'BackgroundColor', [1 1 1],...
+    'Tag', 'meanref_auto_midall', 'Callback', @select_meanref_auto); 
 
 
 % choix des mesures qui serviront a calculer la reference, data ou HC ?
 GUI.auto_meanref.HC = uicontrol('Style', 'checkbox', 'String', 'ref on HC', 'Value', 0,...
-    'Position', [190 5 40 20],'Units', 'normalized', 'BackgroundColor', [1 1 1],...
+    'Position', [230 5 40 20],'Units', 'normalized', 'BackgroundColor', [1 1 1],...
     'Tag', 'HCref_auto', 'Callback', @select_dataref_auto); 
 GUI.auto_meanref.data = uicontrol('Style', 'checkbox', 'String', 'ref on DATAS', 'Value', 1,...
-    'Position', [190 25 40 20],'Units', 'normalized', 'BackgroundColor', [1 1 1],...
+    'Position', [230 25 40 20],'Units', 'normalized', 'BackgroundColor', [1 1 1],...
     'Tag', 'dataref_auto', 'Callback', @select_dataref_auto); 
 
 
@@ -916,15 +923,17 @@ saz = findobj('Tag','meanref_auto_zero');
 same = findobj('Tag','meanref_auto_mean');
 sama = findobj('Tag','meanref_auto_median');
 samm = findobj('Tag','meanref_auto_minmax');
+saam = findobj('Tag','meanref_auto_midall');
 
 % tout deselectionne
 saz.Value = 0;
 same.Value = 0;
 sama.Value = 0;
 samm.Value = 0;
+saam.Value = 0;
 % reactive le boutton selectionne
 eventdata.Source.Value = 1;
-clear saz same sama samm
+clear saz same sama samm saam
 
 
 % modif l'affichage
@@ -1014,6 +1023,14 @@ y_ref.data.Zero   = zeros(1,9);
 y_ref.data.Median = median(data_ref);
 y_ref.data.Mean   = mean(data_ref);
 y_ref.data.MinMax = min(data_ref)+(max(data_ref)-min(data_ref))/2;
+
+minall = min(data_ref);
+maxall = max(data_ref);
+y_ref.data.MidAll = y_ref.data.MinMax;
+y_ref.data.MidAll(1:3:end) = min(minall(1:3:end))+(max(maxall(1:3:end))-min(minall(1:3:end)))/2;
+y_ref.data.MidAll(2:3:end) = min(minall(2:3:end))+(max(maxall(2:3:end))-min(minall(2:3:end)))/2;
+y_ref.data.MidAll(3:3:end) = min(minall(3:3:end))+(max(maxall(3:3:end))-min(minall(3:3:end)))/2;
+clear minall maxall
 
 y_ref.HC.Zero   = HC_pos(1,:)-data;
 y_ref.HC.Median = median(HC_pos)-data;

@@ -48,6 +48,12 @@ function Adjust_Head_Pos_XYZbased(Header, meanref)
 %       <filename> correspond par défaut à
 %       HC_for_coreg/<subject>/<precision>cm_<block>.hc (dossier créé
 %       automatiquement).
+%
+% - 15/03/2018  Benjamin ADOR
+%       En plus, sauvegarde des distances entre les bobines
+%       (-coil_proportions.csv).
+%       Pour sauvegarde, arrondi des distances et des proportions à la 4ème décimale
+%       (en cm, arrondi au µm).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Init
@@ -132,7 +138,7 @@ D_eucl_eright = sqrt((data(:,7)-pos_ref(7)).^2 + (data(:,8)-pos_ref(8)).^2 + (da
 % distances.R = D_eucl_eright;
 
 fig_data.meanref = meanref;
-fig_data.distances = table(D_eucl_X, D_eucl_Y, D_eucl_Z, D_eucl_nas, D_eucl_eleft, D_eucl_eright, 'VariableNames',{'X','Y','Z','N','L','R'});
+fig_data.distances = table(round(D_eucl_X, 4), round(D_eucl_Y, 4), round(D_eucl_Z, 4), round(D_eucl_nas, 4), round(D_eucl_eleft, 4), round(D_eucl_eright, 4), 'VariableNames',{'X','Y','Z','N','L','R'});
 
 fprintf('\nTrend\n\tX: %s cm\n\tY: %s cm\n\tZ: %s cm\n ', num2str(D_eucl_X(end)-D_eucl_X(1)), num2str(D_eucl_Y(end)-D_eucl_Y(1)), num2str(D_eucl_Z(end)-D_eucl_Z(1)))
 fprintf('\nJump\n\tX: %s cm\n\tY: %s cm\n\tZ: %s cm\n\n ', num2str(max(abs(D_eucl_X))-D_eucl_X(1)), num2str(max(abs(D_eucl_Y))-D_eucl_Y(1)), num2str(max(abs(D_eucl_Z))-D_eucl_Z(1)))
@@ -1005,14 +1011,14 @@ for xi_file = 1 : length(Header.filename)
     
     if xi_file == 1
         distances.block(1:Header.blockoffset(xi_file)) = block;
-        distances.time(1:Header.blockoffset(xi_file)) = time;
+        distances.time(1:Header.blockoffset(xi_file)) = round(time, 4);
     else
         distances.block(1+Header.blockoffset(xi_file-1):Header.blockoffset(xi_file)) = block;
         distances.time(1+Header.blockoffset(xi_file-1):Header.blockoffset(xi_file)) = time;
     end
 end
 
-writetable(distances(1:round(Header.sample_rate/10):end,:),filename)
+writetable(distances(1:round(Header.sample_rate/10):end,:), filename)
 
 
 function save_coil_proportions(Header, dewar, filename)
@@ -1020,15 +1026,15 @@ function save_coil_proportions(Header, dewar, filename)
 coil_prop = table();
 coil_prop.Distance_cm = string({'NasionToLeft', 'NasionToRight', 'LeftToRight'}');
 
-coil_prop.Original = [sqrt(sum((Header.HC_raw{1}.dewar.nas - Header.HC_raw{1}.dewar.lpa).^2)), ...
-    sqrt(sum((Header.HC_raw{1}.dewar.nas - Header.HC_raw{1}.dewar.rpa).^2)), ...
-    sqrt(sum((Header.HC_raw{1}.dewar.lpa - Header.HC_raw{1}.dewar.rpa).^2))]';
+coil_prop.Original = [round(sqrt(sum((Header.start_pos.nas - Header.start_pos.lpa).^2)), 4), ...
+    round(sqrt(sum((Header.start_pos.nas - Header.start_pos.rpa).^2)), 4), ...
+    round(sqrt(sum((Header.start_pos.lpa - Header.start_pos.rpa).^2)), 4)]';
 
-coil_prop.New = [sqrt(sum((dewar.nas - dewar.lpa).^2)), ...
-    sqrt(sum((dewar.nas - dewar.rpa).^2)), ...
-    sqrt(sum((dewar.lpa - dewar.rpa).^2))]';
+coil_prop.New = [round(sqrt(sum((dewar.nas - dewar.lpa).^2)), 4), ...
+    round(sqrt(sum((dewar.nas - dewar.rpa).^2)), 4), ...
+    round(sqrt(sum((dewar.lpa - dewar.rpa).^2)), 4)]';
 
-coil_prop.Difference = coil_prop.New - coil_prop.Original;
-coil_prop.Ratio = coil_prop.New ./ coil_prop.Original;
+coil_prop.Difference = round(coil_prop.New - coil_prop.Original, 4);
+coil_prop.Ratio = round(coil_prop.New ./ coil_prop.Original, 4);
 
 writetable(coil_prop,filename)

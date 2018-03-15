@@ -499,3 +499,41 @@ This is because the ECG S peak is bigger than the R peak --> wrong epoching
 054
 ---
 `OM_15`: right ear moves >0.5cm from the beginning to the end of the block.
+
+
+15/03/2018
+==========
+
+010
+---
+01: Huge movement at the last minute
+
+07: Couldn't keep coil proportions
+
+
+018
+---
+07: Huge movement during the last minute
+
+
+028
+---
+14: Couldn't keep coil proportions (actually, it's rather good: <= 0.062 cm); still one bad segment at 5min38
+
+
+030
+---
+01: Couldn't keep coil proportions (still good: <= 0.041)
+
+
+040
+---
+02: Couldn't keep coil proportions (still good: <= 0.0441)
+
+
+042
+---
+14: Couldn't keep coil proportions (still ok: <= 0.0276; woulb be 0.0509 with MinMax)
+
+
+### I just realised coil proportions don't work as intended because of the difference between DATA and HC ref...
