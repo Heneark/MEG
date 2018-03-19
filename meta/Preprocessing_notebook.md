@@ -497,7 +497,7 @@ This is because the ECG S peak is bigger than the R peak --> wrong epoching
 ==========
 
 054
----
+---0.1
 `OM_15`: right ear moves >0.5cm from the beginning to the end of the block.
 
 
@@ -508,7 +508,7 @@ This is because the ECG S peak is bigger than the R peak --> wrong epoching
 ---
 01: Huge movement at the last minute
 
-07: Couldn't keep coil proportions
+07: Couldn't keep coil proportions (MinMax, difference <= 0.0542 cm)
 
 
 018
@@ -518,22 +518,56 @@ This is because the ECG S peak is bigger than the R peak --> wrong epoching
 
 028
 ---
-14: Couldn't keep coil proportions (actually, it's rather good: <= 0.062 cm); still one bad segment at 5min38
+14: Couldn't keep coil proportions (MinMax, difference <= 0.0519 cm); still one bad segment at 5min38
 
 
 030
 ---
-01: Couldn't keep coil proportions (still good: <= 0.041)
+01: Couldn't keep coil proportions (MinMax, difference <= 0.0128 cm)
 
 
 040
 ---
-02: Couldn't keep coil proportions (still good: <= 0.0441)
+02: Couldn't keep coil proportions (sharp peak => Mean, difference<= 0.0175)
 
 
 042
 ---
-14: Couldn't keep coil proportions (still ok: <= 0.0276; woulb be 0.0509 with MinMax)
+14: Couldn't keep coil proportions (MinMax on Z + MidAll on X and Y, difference <= 0.0276 cm (close to Mean: 0.0296))
 
 
 ### I just realised coil proportions don't work as intended because of the difference between DATA and HC ref...
+
+_**Corrected when coil proportions shouldn't be kept; all others should be zero (but are not corrected)**_
+
+
+054
+---
+15: Too much drift --> Couldn't keep coil proportions nor prevent bad segments
+
+`+end`: preserved the end to the cost of the first 20 sec (Mean, difference <= 0.0135 cm)
+
+`+start`: preserved the beginning (except the first 1.2 sec) to the cost of the last 14 sec (MinMax, difference <= 0.0095 cm)
+
+
+068
+---
+14: Tight fit --> MidAll on Z + 0.15 on X + 0.025 on Y
+
+
+072
+---
+01: Couldn't keep coil proportions (Median, difference <= 0.0561 cm)
+
+`03+end`: preserved the end to the cost of the first 100 sec (Median, difference <= 0.0514 cm)
+
+`03+start`: preserved the beginning to the cost of the last 42 sec (MinMax with Z_Left set to -0.45, difference <= 0.0301 cm)
+
+
+073
+---
+01: MinMax (difference <= 0.0292), bad = [60,90] + last 2 min
+
+`01+start`: preserved the beginning to the cost of the last 140 sec (MinMax with X_Left = 0.15, Y_Left = 0.1, Z_Left = -0.2, difference <= 0.0404 cm)
+
+`01+end`: preserved the end to the cost of the first 120 sec (MinMax with X_Left = 0.25, Y_Left = 0.2, Z_Left = -0.4, difference <= 0.0477 cm)

@@ -15,6 +15,7 @@ function Adjust_Head_Pos_3DirbyCoil(DSpath)
 %     Les évènements sont lus sur le CTF channel par défaut (cf.
 %     radiobutton correspondant)
 %
+
 % - 15/07/15    RB
 %     ajout des ZOOM
 
@@ -41,7 +42,7 @@ function Adjust_Head_Pos_3DirbyCoil(DSpath)
 addpath(genpath('/dycog/matlab/prog/spm12'))
 
 %% Init
-
+close all
 clc
 
 if ispc 
