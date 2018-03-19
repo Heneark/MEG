@@ -15,8 +15,8 @@ from header import *
 
 #PARAMETERS
 #==============================================================================
-task = 'MIMOSA'
-states = ['FA','OM']
+task = 'SMEG' #'MIMOSA'
+states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
 #reject = ['004', '010']
@@ -41,12 +41,6 @@ import morphing
 #==============================================================================
 
 
-for sub in subjects:
-    for state in states:
-        for blk in get_blocks(sub, task=task, state=state):
-            raw,raw_ECG = preproc.process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
-#            preproc.epoch(task, sub, state, blk, check_ica=True, save_t_timing=False, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection=None, baseline=None)
-
 # ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================
 # recon-all -i <sub_T1.nii> -s <sub> -all
@@ -55,23 +49,27 @@ for sub in subjects:
 #==============================================================================
 
 # # Run anatomy functions in a console (does not work with IPython).
-# # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')"at the top of this script
+# # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')" at the top of this script
+
 #subjects = ['055', '094']
 #for s,sub in enumerate(subjects):
-#    watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'inner_skull.surf'))
-##    watershed = True
-##    if s >= subjects.index('050'):
-##        watershed = False
+#    watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'brain.surf'))
 #    anatomy.BEM(subject=sub, watershed=watershed)
 #    anatomy.src_space(subject=sub)
 
 #COREGISTRATION: MATLAB
 #==============================================================================
 # Adjust_Head_Pos_3DirbyCoil.m
-# # Select which block to coregister --> Analyses/<task>/<meg>/HC_for_coreg/<subject>/<range>_<blocki_blockj>.hc
+# # Select which block to coregister --> Analyses/<task>/<meg>/HC_for_coreg/<subject>/<precision>_<blocki_blockj>.hc
 #==============================================================================
 
-#HPI_update.update(task=task, subjects=subjects)
+
+for sub in subjects:
+    for state in states:
+        for blk in get_blocks(sub, task=task, state=state):
+#            raw,raw_ECG = preproc.process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
+#            preproc.epoch(task, sub, state, blk, check_ica=True, save_t_timing=False, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection=None, baseline=None)
+            HPI_update.update(task, sub, state, blk)
 
 #%gui wx
 #mne.gui.coregistration()
