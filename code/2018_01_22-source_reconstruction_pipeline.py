@@ -64,15 +64,21 @@ import morphing
 #==============================================================================
 
 
+#for sub in subjects:
+#    for state in states:
+#        for blk in get_blocks(sub, task=task, state=state):
+##            raw,raw_ECG = preproc.process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
+##            preproc.epoch(task, sub, state, blk, check_ica=True, save_t_timing=False, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection=None, baseline=None)
+##            HPI_update.update(task, sub, state, blk)
+
+
 for sub in subjects:
-    for state in states:
-        for blk in get_blocks(sub, task=task, state=state):
-#            raw,raw_ECG = preproc.process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
-#            preproc.epoch(task, sub, state, blk, check_ica=True, save_t_timing=False, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection=None, baseline=None)
-            HPI_update.update(task, sub, state, blk)
+    os.system("mne make_scalp_surfaces -s {s}".format(s=sub))
+    # creates SUBJECTS_DIR/<subject>/bem/<subject>-head-dense.fif
 
 #%gui wx
 #mne.gui.coregistration()
+# # on "Save", creates SUBJECTS_DIR/<subject>/bem/<subject>-fiducials.fif
 # https://www.slideshare.net/mne-python/mnepython-coregistration
 # Files corresponding to the coregistration: *'-trans.fif' (Source_Rec directory)
 

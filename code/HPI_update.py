@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 def update(task, subject, state, block, precision='0.5cm', opt='start'):
     """Load *-epo.fif Epochs from Analysis/<task>/meg/Epochs/<subject>/.
-    Coordinates are updated according to .hc files in Analysis/<task>/meg/HC_for_coreg/<subject>/.
+    Coordinates are updated according to .hc files in Analysis/<task>/meg/Coregistration/<subject>/.
     Corresponding bad segments due to head movement are rejected.
     The average *-ave.fif Evoked response is then saved in Analysis/<task>/meg/Evoked/<subject>/.
     Parameters:
@@ -26,11 +26,11 @@ def update(task, subject, state, block, precision='0.5cm', opt='start'):
     
     #==============================================================================
     data_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
-    hc_path = op.join(Analysis_path, task, 'meg', 'HC_for_coreg', subject)
+    hc_path = op.join(Analysis_path, task, 'meg', 'Coregistration', subject)
     #==============================================================================
     
     # Find the .hc file corresponding to this block
-    hc_files = glob.glob(op.join(hc_path, '{}*_{}*.hc'.format(precision,block)))
+    hc_files = glob.glob(op.join(hc_path, '*{}*_{}*.hc'.format(precision,block)))
     hc_file = ''
     if len(hc_files) > 1:
         for hc in hc_files:
@@ -47,7 +47,10 @@ def update(task, subject, state, block, precision='0.5cm', opt='start'):
         hc_file = hc_files[0]
     
     bs_fname = hc_file[:-3] + '-bad.segments' + block
-    bad_segments = pd.read_table(bs_fname, header=None)
+    bads = False
+    if os.stat(bs_fname).st_size > 0:
+        bad_segments = pd.read_table(bs_fname, header=None)
+        bads = True
     
     # Read and load the content of the .hc file    
 #==============================================================================
@@ -166,21 +169,20 @@ def update(task, subject, state, block, precision='0.5cm', opt='start'):
                     data.info['dig'][i]['coord_frame'] = 4
                     
         #==============================================================================   
-        
-        for i in range(len(bad_segments)):
-            events = data.events[:,0]/data.info['sfreq'] #extract event timing
-            data.drop(np.logical_and(bad_segments.iloc[i][1] < events + data.times[-1], events + data.times[0] < bad_segments.iloc[i][2]), reason = 'head_movement')
-            #reject the epoch if it ends after the beginning of the bad segment, and starts before the end of the bad segment
+        if bads:
+            for i in range(len(bad_segments)):
+                events = data.events[:,0]/data.info['sfreq'] #extract event timing
+                data.drop(np.logical_and(bad_segments.iloc[i][0] < events + data.times[-1], events + data.times[0] < bad_segments.iloc[i][1]), reason = 'head_movement')
+                #reject the epoch if it ends after the beginning of the bad segment, and starts before the end of the bad segment
         
         #==============================================================================
         # AVERAGE AND SAVE TO FILE   
         evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
         if not op.isdir(evoked_path):
             os.makedirs(evoked_path)
-        evoked_file = op.join(evoked_path, data_fname.split('/')[-1][:-8] + '-ave.fif')
         
         evoked = data.average()
-        evoked.save(data_fname)
+        evoked.save(op.join(evoked_path, data_fname.split('/')[-1][:-8] + '-ave.fif'))
         
         print(colored ('Done', 'green'))
         #==============================================================================

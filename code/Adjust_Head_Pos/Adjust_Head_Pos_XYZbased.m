@@ -46,7 +46,7 @@ function Adjust_Head_Pos_XYZbased(Header, meanref)
 %       En plus, sauvegarde des distances (selon X/Y/Z et par rapport aux
 %       coils) dans <filename>-distances.csv.
 %       <filename> correspond par défaut à
-%       HC_for_coreg/<subject>/<precision>cm_<block>.hc (dossier créé
+%       HC_for_coreg/<subject>/<subject>_<precision>cm_<block>.hc (dossier créé
 %       automatiquement).
 %
 % - 15/03/2018  Benjamin ADOR
@@ -786,7 +786,7 @@ subject = subject{end-1};
 filepath = strcat('/dycog/meditation/ERC/Analyses/SMEG/meg/HC_for_coreg/', subject);
 mkdir(filepath)
 
-filename = strcat(precision, Header.unit);
+filename = strcat(subject, '_', precision, Header.unit);
 for b = 1 : length(Header.filename)
     block = split(Header.filename{b}, '_');
     block = extractBefore(block{end},'.ds');

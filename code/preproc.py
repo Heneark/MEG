@@ -191,7 +191,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     Run preprocessing and return preprocessed raw data.
     If check_ica, plot overlay and properties of ECG and EOG components (default to True).
     If save_ica, save ICA and ICA plots (deleting previously existing component properties), and write ICA log (default to True).
-    If overwrite_ica, artifact detection will be perfomed again even if an ICA file exists (default to False).
+    If overwrite_ica, artifact scoring will be perfomed again (default to False).
     Output:
         'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_ecg.png'
         'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_eog.png'
@@ -220,6 +220,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         else:
             ica = read_ica(ICA_file)
     
+    raw.info['subject_info'].update({'sub':subject})
     raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
     raw.pick_types(meg=True, ecg=True, eog=True, stim=True, exclude='bads')
     
