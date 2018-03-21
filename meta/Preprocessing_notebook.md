@@ -571,3 +571,16 @@ _**Corrected when coil proportions shouldn't be kept; all others should be zero 
 `01+start`: preserved the beginning to the cost of the last 140 sec (MinMax with X_Left = 0.15, Y_Left = 0.1, Z_Left = -0.2, difference <= 0.0404 cm)
 
 `01+end`: preserved the end to the cost of the first 120 sec (MinMax with X_Left = 0.25, Y_Left = 0.2, Z_Left = -0.4, difference <= 0.0477 cm)
+
+
+21/03/2018
+==========
+
+032
+---
+`RS_01`: not best LPA/RPA fit
+
+
+087
+---
+Weird head

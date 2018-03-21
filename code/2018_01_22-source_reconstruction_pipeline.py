@@ -73,7 +73,7 @@ import morphing
 
 
 for sub in subjects:
-    os.system("mne make_scalp_surfaces -s {s}".format(s=sub))
+    os.system("mne make_scalp_surfaces -s {s}".format(s=sub)) #OR in bash: for sub in *; do mne make_scalp_surfaces -s $sub; done
     # creates SUBJECTS_DIR/<subject>/bem/<subject>-head-dense.fif
 
 #%gui wx
