@@ -46,6 +46,11 @@ Subject 010
 `OM_07`: **ECG**25 has a high score but not marked for exclusion => T component
 
 
+Subject 011
+-----------
+_Rejected before I arrived, don't know why_
+
+
 Subject 012
 -----------
 `RS_01`: 2nd weak and noisy **EOG** component
@@ -384,6 +389,11 @@ very few EOG events (`FA_06`: only 2 actual blinks)
 `FA_11`: >3 ECG events, ECG47 weak and weird
 
 
+081
+---
+**Rejected** (temporal artifact)
+
+
 083
 ---
 >3 ECG components (seems OK)
@@ -469,11 +479,19 @@ Nothing to report
 ---
 `FA_16`: ECG rejection not very effective (T component in particular); weird "split" EOG component
 
+
 095
 ---
 No ECG --> use EEG008-2800 instead (although EEG003 has more ECG amplitude)
 
 `FA_02`: >3 ECG components --> maybe some weird T waves
+
+
+109
+---
+`RS_01`, `FA_02`: >3 ECG components (OK)
+
+`OM_14`: 2nd weird EOG component
 
 
 01/03/2018
@@ -497,7 +515,7 @@ This is because the ECG S peak is bigger than the R peak --> wrong epoching
 ==========
 
 054
----0.1
+---
 `OM_15`: right ear moves >0.5cm from the beginning to the end of the block.
 
 
@@ -584,3 +602,8 @@ _**Corrected when coil proportions shouldn't be kept; all others should be zero 
 087
 ---
 Weird head
+
+
+073
+---
+No head-dense.fif, coregistration gui works anyway (same for subjects 083 and 095)

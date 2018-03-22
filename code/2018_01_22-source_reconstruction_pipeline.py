@@ -13,15 +13,15 @@ from header import *
 #==============================================================================
 
 
-#PARAMETERS
+#%% PARAMETERS
 #==============================================================================
 task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-#reject = ['004', '010']
-#for sub in reject:
-#    subjects.remove(sub)
+reject = ['004', '010']
+for sub in reject:
+    subjects.remove(sub)
 
 # # Last subject preprocessed: 109
 # # Future subjects list:
@@ -30,7 +30,7 @@ subjects.sort()
 #==============================================================================
 
 
-#PROCESSING SCRIPTS
+#%% PROCESSING SCRIPTS
 #==============================================================================
 import preproc
 import anatomy
@@ -41,7 +41,7 @@ import morphing
 #==============================================================================
 
 
-# ANATOMICAL RECONSTRUCTION: FREESURFER
+#%% ANATOMICAL RECONSTRUCTION: FREESURFER
 #==============================================================================
 # recon-all -i <sub_T1.nii> -s <sub> -all
 # # INPUT: MRI T1 raw data
@@ -51,37 +51,54 @@ import morphing
 # # Run anatomy functions in a console (does not work with IPython).
 # # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')" at the top of this script
 
-#subjects = ['055', '094']
-#for s,sub in enumerate(subjects):
+#subjectlist = ''
+#for sub in subjects:
+#    if op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')) and not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', sub+'-head-dense.fif')):
+##    if not op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')):
+#        subjectlist += sub+'\n'
+#with open('bash_subject_list.txt', 'w') as fid:
+#    fid.write(subjectlist)
+
+#for s,sub in enumerate(subjectlist.split()):
 #    watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'brain.surf'))
 #    anatomy.BEM(subject=sub, watershed=watershed)
 #    anatomy.src_space(subject=sub)
 
-#COREGISTRATION: MATLAB
+# BASH
+#==============================================================================
+# while read p; do mne make_scalp_surfaces -s $p -o; done < $"bash_subject_list.txt"
+#==============================================================================
+
+
+#%% HEAD POSITION: MATLAB
 #==============================================================================
 # Adjust_Head_Pos_3DirbyCoil.m
 # # Select which block to coregister --> Analyses/<task>/<meg>/HC_for_coreg/<subject>/<precision>_<blocki_blockj>.hc
 #==============================================================================
 
 
+#%% PREPROCESSING
+#==============================================================================
 #for sub in subjects:
 #    for state in states:
 #        for blk in get_blocks(sub, task=task, state=state):
 ##            raw,raw_ECG = preproc.process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
 ##            preproc.epoch(task, sub, state, blk, check_ica=True, save_t_timing=False, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection=None, baseline=None)
 ##            HPI_update.update(task, sub, state, blk)
+#==============================================================================
 
 
-for sub in subjects:
-    os.system("mne make_scalp_surfaces -s {s}".format(s=sub)) #OR in bash: for sub in *; do mne make_scalp_surfaces -s $sub; done
-    # creates SUBJECTS_DIR/<subject>/bem/<subject>-head-dense.fif
-
+#%% COREGISTRATION
+#==============================================================================
 #%gui wx
 #mne.gui.coregistration()
 # # on "Save", creates SUBJECTS_DIR/<subject>/bem/<subject>-fiducials.fif
 # https://www.slideshare.net/mne-python/mnepython-coregistration
 # Files corresponding to the coregistration: *'-trans.fif' (Source_Rec directory)
+#==============================================================================
 
+
+#%%
 #covariance_matrix.covariance(task=task, states=states, subjects=subjects, do_epochs_cov=True)
 
 #source_reconstruction.src_rec(task=task, states=states, subjects=subjects)
