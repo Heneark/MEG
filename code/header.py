@@ -8,6 +8,7 @@ Created on Wed Aug  2 18:02:35 2017
 import sys, os
 import os.path as op
 import glob
+import inspect
 import joblib# allows for parallel processing
 import locale
 import matplotlib.gridspec as gridspec

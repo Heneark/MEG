@@ -599,6 +599,11 @@ _**Corrected when coil proportions shouldn't be kept; all others should be zero 
 `RS_01`: not best LPA/RPA fit
 
 
+067
+---
+Surface inner skull is not completely inside surface outer skull
+
+
 087
 ---
 Weird head
@@ -607,3 +612,11 @@ Weird head
 073
 ---
 No head-dense.fif, coregistration gui works anyway (same for subjects 083 and 095)
+
+
+23/03/2018
+==========
+
+054
+---
+Noise data are from the day before, created a copy changing its name to match the day of acquisition (same for subjects 068 and 109)

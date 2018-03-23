@@ -34,7 +34,7 @@ def covariance(task, states, subjects=None, tag='Cardiac', ECG_channel = ['EEG06
         
         print((' - subj {} :'.format(subj)))   
                  
-        data_path = op.join(Raw_data_path, task, 'meg')         
+        data_path = op.join(Raw_data_path, task, 'meg')
         cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', get_id(subj))
         if not op.exists(cov_path):
             os.makedirs(cov_path)
@@ -72,7 +72,7 @@ def covariance(task, states, subjects=None, tag='Cardiac', ECG_channel = ['EEG06
             trans_names = []
             
             for path in trans_paths:
-                trans_names.append(op.split(path)[1].strip('-trans.fif').split('_')[2:]) 
+                trans_names.append(op.split(path)[1].strip('-trans.fif').split('_')[2:])
         
             
             for state in states:

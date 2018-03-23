@@ -32,9 +32,6 @@ subjects.sort()
 
 #%% PROCESSING SCRIPTS
 #==============================================================================
-import preproc
-import anatomy
-import HPI_update
 import covariance_matrix
 import source_reconstruction
 import morphing
@@ -51,22 +48,22 @@ import morphing
 # # Run anatomy functions in a console (does not work with IPython).
 # # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')" at the top of this script
 
+#from anat import BEM, src_space
+#for sub in subjects:
+#    if op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub)) and not op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')):
+#        watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'brain.surf'))
+#        BEM(subject=sub, watershed=watershed)
+#        src_space(subject=sub)
+#
 #subjectlist = ''
 #for sub in subjects:
 #    if op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')) and not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', sub+'-head-dense.fif')):
-##    if not op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')):
 #        subjectlist += sub+'\n'
 #with open('bash_subject_list.txt', 'w') as fid:
 #    fid.write(subjectlist)
-
-#for s,sub in enumerate(subjectlist.split()):
-#    watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'brain.surf'))
-#    anatomy.BEM(subject=sub, watershed=watershed)
-#    anatomy.src_space(subject=sub)
-
-# BASH
+## BASH
 #==============================================================================
-# while read p; do mne make_scalp_surfaces -s $p -o; done < $"bash_subject_list.txt"
+# while read p; do mne make_scalp_surfaces -s $p -o; done < bash_subject_list.txt
 #==============================================================================
 
 
@@ -79,12 +76,13 @@ import morphing
 
 #%% PREPROCESSING
 #==============================================================================
+#from preproc import process, epoch, empty_room_covariance
 #for sub in subjects:
+#    empty_room_covariance(task, sub)
 #    for state in states:
 #        for blk in get_blocks(sub, task=task, state=state):
-##            raw,raw_ECG = preproc.process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
-##            preproc.epoch(task, sub, state, blk, check_ica=True, save_t_timing=False, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection=None, baseline=None)
-##            HPI_update.update(task, sub, state, blk)
+#            raw,raw_ECG = process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
+#            epochs = epoch(task, sub, state, blk, check_ica=True, save_t_timing=False, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection=None, baseline=None)
 #==============================================================================
 
 
@@ -94,11 +92,28 @@ import morphing
 #mne.gui.coregistration()
 # # on "Save", creates SUBJECTS_DIR/<subject>/bem/<subject>-fiducials.fif
 # https://www.slideshare.net/mne-python/mnepython-coregistration
-# Files corresponding to the coregistration: *'-trans.fif' (Source_Rec directory)
+# Files corresponding to the coregistration: Analyses/<task>/meg/Coregistration/<subject>/<HCfilename>'-trans.fif'
 #==============================================================================
 
 
 #%%
+#name = ['R_ECG_included','R_ECG_excluded']
+#precision = '0.5cm'
+#for sub in subjects:
+#    coreg = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*'+precision+'*-trans.fif'))
+#    for f,file in enumerate(coreg):
+#        coreg[f] = set(op.split(coreg[f])[-1].split(precision)[-1].strip('-trans.fif').split('_')[1:])
+#    
+#    for state in states:
+#        blocks = set(get_blocks(sub, task=task, state=state))
+#        groups = []
+#        for file in coreg:
+#            if blocks & file:
+#                groups.append(blocks & file)
+#        
+#        for group in groups:
+#            for blk in group:
+                
 #covariance_matrix.covariance(task=task, states=states, subjects=subjects, do_epochs_cov=True)
 
 #source_reconstruction.src_rec(task=task, states=states, subjects=subjects)
