@@ -19,9 +19,10 @@ task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-reject = ['004', '010']
+reject = ['004', '010', '067']
 for sub in reject:
-    subjects.remove(sub)
+    if sub in subjects:
+        subjects.remove(sub)
 
 # # Last subject preprocessed: 109
 # # Future subjects list:
@@ -30,38 +31,34 @@ subjects.sort()
 #==============================================================================
 
 
-#%% PROCESSING SCRIPTS
-#==============================================================================
-import covariance_matrix
-import source_reconstruction
-import morphing
-#==============================================================================
-
-
-#%% ANATOMICAL RECONSTRUCTION: FREESURFER
+#%% ANATOMICAL RECONSTRUCTION
+# FREESURFER
 #==============================================================================
 # recon-all -i <sub_T1.nii> -s <sub> -all
 # # INPUT: MRI T1 raw data
 # # OUPUT in FreeSurfer SUBJECTS_DIR
 #==============================================================================
 
-# # Run anatomy functions in a console (does not work with IPython).
-# # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')" at the top of this script
 
-#from anat import BEM, src_space
+# # Run anatomy functions in a terminal (does not work with IPython).
+# # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')" at the top of this script
+from anat import BEM, src_space
+
 #for sub in subjects:
 #    if op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub)) and not op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')):
 #        watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'brain.surf'))
 #        BEM(subject=sub, watershed=watershed)
 #        src_space(subject=sub)
-#
+
+
 #subjectlist = ''
 #for sub in subjects:
 #    if op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')) and not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', sub+'-head-dense.fif')):
 #        subjectlist += sub+'\n'
 #with open('bash_subject_list.txt', 'w') as fid:
 #    fid.write(subjectlist)
-## BASH
+
+# TERMINAL COMMAND
 #==============================================================================
 # while read p; do mne make_scalp_surfaces -s $p -o; done < bash_subject_list.txt
 #==============================================================================
@@ -75,48 +72,48 @@ import morphing
 
 
 #%% PREPROCESSING
-#==============================================================================
-#from preproc import process, epoch, empty_room_covariance
+from preproc import process, epoch, empty_room_covariance
+
 #for sub in subjects:
 #    empty_room_covariance(task, sub)
 #    for state in states:
 #        for blk in get_blocks(sub, task=task, state=state):
 #            raw,raw_ECG = process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
-#            epochs = epoch(task, sub, state, blk, check_ica=True, save_t_timing=False, ECG_threshold=0.2, EOG_threshold=5, ica_rejection={'mag':7000e-15}, high_pass=.5, low_pass=None, rejection=None, baseline=None)
-#==============================================================================
+#            epochs = epoch(task, sub, state, blk, high_pass=.5, low_pass=None)
 
 
-#%% COREGISTRATION
+#%% COREGISTRATION (https://www.slideshare.net/mne-python/mnepython-coregistration)
 #==============================================================================
 #%gui wx
 #mne.gui.coregistration()
 # # on "Save", creates SUBJECTS_DIR/<subject>/bem/<subject>-fiducials.fif
-# https://www.slideshare.net/mne-python/mnepython-coregistration
-# Files corresponding to the coregistration: Analyses/<task>/meg/Coregistration/<subject>/<HCfilename>'-trans.fif'
+# # Files corresponding to the coregistration: Analyses/<task>/meg/Coregistration/<subject>/<HCfilename>'-trans.fif'
 #==============================================================================
 
 
+#%% SOURCE RECONSTRUCTION
+from source_reconstruction import baseline_covariance, src_rec
+
+names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
+precision = '0.5cm'
+subjects=subjects[:1]
+for sub in subjects:
+    coreg = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', sub, '*'+precision+'*-trans.fif'))
+    for f,file in enumerate(coreg):
+        coreg[f] = set(op.split(coreg[f])[-1].split(precision)[-1].strip('-trans.fif').split('_')[1:])
+    
+    for state in states:
+        blocks = set(get_blocks(sub, task=task, state=state))
+        groups = []
+        for file in coreg:
+            if blocks & file:
+                groups.append(sorted(list(blocks & file)))
+        
+        for group in groups:
+            noise_cov,evoked = baseline_covariance(task, subject, state, block_group=group, baseline=(-.4,-.25), names=names)
+            stc_surf,stc_vol = src_rec(task, subject, state, block_group=group, evoked=evoked, noise_cov=noise_cov, names=names)
+
+
 #%%
-#name = ['R_ECG_included','R_ECG_excluded']
-#precision = '0.5cm'
-#for sub in subjects:
-#    coreg = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*'+precision+'*-trans.fif'))
-#    for f,file in enumerate(coreg):
-#        coreg[f] = set(op.split(coreg[f])[-1].split(precision)[-1].strip('-trans.fif').split('_')[1:])
-#    
-#    for state in states:
-#        blocks = set(get_blocks(sub, task=task, state=state))
-#        groups = []
-#        for file in coreg:
-#            if blocks & file:
-#                groups.append(blocks & file)
-#        
-#        for group in groups:
-#            for blk in group:
-                
-#covariance_matrix.covariance(task=task, states=states, subjects=subjects, do_epochs_cov=True)
-
-#source_reconstruction.src_rec(task=task, states=states, subjects=subjects)
-
+#import morphing
 #morphing.average(task=task, subjects=subjects)
-

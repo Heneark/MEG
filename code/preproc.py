@@ -225,7 +225,160 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     return raw, raw_ECG
 
 
-def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5e-12}, name=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], save_t_timing=False, tmin=-.5, tmax=.8, baseline=(-.4,-.3), check_ica=False, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3):
+def HPI_update(task, subject, block, data, precision='0.5cm', opt='start', reject_head_mvt=True):
+    """
+    Load *-epo.fif Epochs from Analysis/<task>/meg/Epochs/<subject>/.
+    Coordinates are updated according to .hc files in Analysis/<task>/meg/Coregistration/<subject>/.
+    Corresponding bad segments due to head movement are rejected.
+    The average *-ave.fif Evoked response is then saved in Analysis/<task>/meg/Evoked/<subject>/.
+    Parameters:
+        opt: argument to choose between multiple .hc files
+    """
+    
+    #==============================================================================
+    data_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
+    hc_path = op.join(Analysis_path, task, 'meg', 'Coregistration', subject)
+    #==============================================================================
+    
+    # Find the .hc file corresponding to this block
+    hc_files = glob.glob(op.join(hc_path, '*{}*_{}*.hc'.format(precision,block)))
+    hc_file = ''
+    if len(hc_files) > 1:
+        for hc in hc_files:
+            if not opt and not '+' in hc:
+                hc_file = hc
+                continue
+            if opt and opt in hc:
+                hc_file = hc
+                continue
+        if not hc_file:
+            hc_file = hc_files[0]
+            warnings.warn("Multiple .hc files found, none matching the desired option. Using {}.".format(hc_file))
+    else:
+        hc_file = hc_files[0]
+    
+    bs_fname = hc_file[:-3] + '-bad.segments' + block
+    bads = False
+    if os.stat(bs_fname).st_size > 0:
+        bad_segments = pd.read_table(bs_fname, header=None)
+        bads = True
+    
+    # Read and load the content of the .hc file    
+#==============================================================================
+    with open(hc_file) as f:
+        content = f.readlines()
+
+    content = [x.strip() for x in content] 
+    
+    Nasion_ctf = [0,0,0,1]
+    Left_ctf = [0,0,0,1]
+    Right_ctf = [0,0,0,1]
+    
+    Nasion_ctf[0] = float(content[25].strip('x = '))
+    Nasion_ctf[1] = float(content[26].strip('y = '))
+    Nasion_ctf[2] = float(content[27].strip('z = '))
+    
+    Left_ctf[0] = float(content[29].strip('x = '))
+    Left_ctf[1] = float(content[30].strip('y = '))
+    Left_ctf[2] = float(content[31].strip('z = '))
+    
+    Right_ctf[0] = float(content[33].strip('x = '))
+    Right_ctf[1] = float(content[34].strip('y = '))
+    Right_ctf[2] = float(content[35].strip('z = '))
+#==============================================================================
+    
+    
+    # CTF -> Neuromag Coordinate transformation matrix
+#==============================================================================
+    ctf_head_trans = data.info['ctf_head_t']['trans']
+    
+    # New Neuromag coordinates
+    
+    Nasion_head = np.dot(ctf_head_trans, Nasion_ctf)*0.01
+    
+    Left_head = np.dot(ctf_head_trans, Left_ctf)*0.01
+    
+    Right_head = np.dot(ctf_head_trans, Right_ctf)*0.01
+#==============================================================================
+    
+    
+    
+    # DEV <-> CTF Coordinate transformation matrix
+#==============================================================================
+    dev_ctf_trans = data.info['dev_ctf_t']['trans']
+    ctf_dev_trans = inv(dev_ctf_trans)
+    
+    # New Dev coordinates                
+    
+    Nasion_dev = np.dot(ctf_dev_trans, Nasion_ctf)*0.01
+    
+    Left_dev = np.dot(ctf_dev_trans, Left_ctf)*0.01
+    
+    Right_dev = np.dot(ctf_dev_trans, Right_ctf)*0.01
+#==============================================================================
+    
+    
+    
+    # UPDATE THE INFO 'hpi_results' DATA WITH NEW DEV COORDINATES
+#==============================================================================
+    for i in range(len(data.info['hpi_results'][0]['dig_points'])):
+        
+        #Just checking it's the right kind of digitizer ...
+        if data.info['hpi_results'][0]['dig_points'][i]['kind'] == 1:
+            
+            #Left, Nasion, Right
+            if data.info['hpi_results'][0]['dig_points'][i]['ident'] == 1:
+                
+                data.info['hpi_results'][0]['dig_points'][i]['r'] = Left_dev[:3]
+                #data.info['hpi_results'][0]['dig_points'][i]['coord_frame'] = 1
+                
+            if data.info['hpi_results'][0]['dig_points'][i]['ident'] == 2:
+                
+                data.info['hpi_results'][0]['dig_points'][i]['r'] = Nasion_dev[:3]
+                #data.info['hpi_results'][0]['dig_points'][i]['coord_frame'] = 1
+                
+            if data.info['hpi_results'][0]['dig_points'][i]['ident'] == 3:
+                
+                data.info['hpi_results'][0]['dig_points'][i]['r'] = Right_dev[:3]
+                #data.info['hpi_results'][0]['dig_points'][i]['coord_frame'] = 1
+#==============================================================================
+                
+                
+    
+    # UPDATE THE INFO 'dig' DATA WITH NEUROMAG HEAD COORDINATES
+#==============================================================================
+    for i in range(len(data.info['dig'])):
+        
+        #Just checking it's the right kind of digitizer ...
+        if data.info['dig'][i]['kind'] == 1:
+            
+            #Left, Nasion, Right
+            if data.info['dig'][i]['ident'] == 1:
+                
+                data.info['dig'][i]['r'] = Left_head[:3]
+                data.info['dig'][i]['coord_frame'] = 4
+                
+            if data.info['dig'][i]['ident'] == 2:
+                
+                data.info['dig'][i]['r'] = Nasion_head[:3]
+                data.info['dig'][i]['coord_frame'] = 4
+                
+            if data.info['dig'][i]['ident'] == 3:
+                
+                data.info['dig'][i]['r'] = Right_head[:3]
+                data.info['dig'][i]['coord_frame'] = 4
+#==============================================================================
+    
+    if bads and reject_head_mvt:
+        for i in range(len(bad_segments)):
+            events = data.events[:,0]/data.info['sfreq'] #extract event timing
+            data.drop(np.logical_and(bad_segments.iloc[i][0] < events + data.times[-1], events + data.times[0] < bad_segments.iloc[i][1]), reason = 'head_movement')
+            #reject the epoch if it ends after the beginning of the bad segment, and starts before the end of the bad segment
+    
+    return data
+
+
+def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, rejection=None, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], save_t_timing=False, tmin=-.5, tmax=.8, baseline=None, update_HPI=True, precision='0.5cm', opt='start', reject_head_mvt=True, check_ica=False, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3):
     """
     Epoch preprocessed raw data and average to evoked response, and return them.
     Output:
@@ -242,7 +395,7 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
                 ECG_threshold: ECG artifact detection threshold (mne default to 0.25)
                 ECG_threshold: ECG artifact detection threshold (mne default to 3.0, increased to 3.5)
         rejection: epoch rejection threshold (default to 2500 fT for magnetometers)
-        name: list of events to epoch
+        names: list of events to epoch
         tmin, tmax, baseline: epoching parameters
     """
     # Save path
@@ -251,51 +404,54 @@ def epoch(task, subject, state, block, raw=None, save=True, rejection={'mag':2.5
         os.makedirs(epochs_path)
     
     # Load data
-    if not raw:
+    if not raw or not raw_ECG:
         raw, raw_ECG = process(task, subject, state, block, check_ica=check_ica, overwrite_ica=overwrite_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, notch=notch, high_pass=high_pass, low_pass=low_pass, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
     
     T_events,T_times = t_detector(task, subject, state, block, raw.copy(), save=save_t_timing)
-    delay = np.median(T_times)
+    delay = .3 #np.median(T_times)
     picks = mne.pick_types(raw.info, meg=True, ecg=True, eog=True, stim=True, exclude='bads')
     
     epochs = dict()
-    evoked = dict()
     
-    for epo in name:
+    for name in names:
         
         # Save file
-        epochs_file = op.join(epochs_path, '{}-{}_{}-epo.fif'.format(epo, state, block))
+        epochs_file = op.join(epochs_path, '{}-{}_{}-epo.fif'.format(name, state, block))
         
         # Epoch
-        if epo == 'R_ECG_excluded':
-            epochs[epo] = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+        if name == 'R_ECG_excluded':
+            epochs[name] = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
         
-        elif epo == 'T_ECG_excluded':
-            epochs[epo] = mne.Epochs(raw, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=(tuple(np.subtract(baseline, (delay,delay))) if baseline else None), picks=picks)
+        elif name == 'T_ECG_excluded':
+            epochs[name] = mne.Epochs(raw, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=(tuple(np.subtract(baseline, (delay,delay))) if baseline else None), picks=picks)
         
-        elif epo == 'R_ECG_included':
-            epochs[epo] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+        elif name == 'R_ECG_included':
+            epochs[name] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
         
-        elif epo == 'T_ECG_included':
-            epochs[epo] = mne.Epochs(raw_ECG, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=(tuple(np.subtract(baseline, (delay,delay))) if baseline else None), picks=picks)
+        elif name == 'T_ECG_included':
+            epochs[name] = mne.Epochs(raw_ECG, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay, baseline=(tuple(np.subtract(baseline, (delay,delay))) if baseline else None), picks=picks)
         
         else:
-            raise ValueError("Epoch {} undefined.".format(epo))
+            raise ValueError("Epoch {} undefined.".format(name))
         
         # Rejection
         if rejection:
-            epochs[epo].drop_bad()
-            epochs[epo].plot_drop_log()
+            epochs[name].drop_bad()
+            epochs[name].plot_drop_log()
             if save:
-                plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.pdf'.format(epo, state, block)), transparent=True)
+                plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.pdf'.format(name, state, block)), transparent=True)
                 plt.close()
                 drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
                 with open(drop_log, 'a') as fid:
-                    fid.write('{} {} epochs dropped\t{}\n'.format(epochs_file.split('/')[-2:], len(np.array(epochs[epo].drop_log)[np.where(epochs[epo].drop_log)]), rejection))
+                    fid.write('{} {} epochs dropped\t{}\n'.format(epochs_file.split('/')[-2:], len(np.array(epochs[name].drop_log)[np.where(epochs[name].drop_log)]), rejection))
+        
+        if update_HPI:
+            epochs[name] = HPI_update(task, subject, block, data=epochs[name].copy(), precision=precision, opt=opt, reject_head_mvt=reject_head_mvt)
         
         # Save epochs
         if save:
-            epochs[epo].save(epochs_file)
+            epochs[name].save(epochs_file)
+        print(colored (epochs_file, 'green'))
         
     return epochs
 
