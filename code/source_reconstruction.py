@@ -31,7 +31,7 @@ def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), 
         elif 'R_ECG' in name:
             use_baseline = baseline
         elif 'T_ECG' in name:
-            use_baseline = tuple(np.subtract(baseline, (t_delay,t_delay)))
+            use_baseline = (baseline[0]-t_delay, baseline[1]-t_delay)
         else:
             use_baseline = baseline
         
