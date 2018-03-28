@@ -98,20 +98,20 @@ names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
 precision = '0.5cm'
 subjects=subjects[:1]
 for sub in subjects:
-    coreg = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', sub, '*'+precision+'*-trans.fif'))
-    for f,file in enumerate(coreg):
-        coreg[f] = set(op.split(coreg[f])[-1].split(precision)[-1].strip('-trans.fif').split('_')[1:])
+    coreg_list = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', sub, '*'+precision+'*-trans.fif'))
+    for c,coreg in enumerate(coreg_list):
+        coreg_list[c] = set(op.split(coreg)[-1].split(precision)[-1].strip('-trans.fif').split('_')[1:])
     
     for state in states:
-        blocks = set(get_blocks(sub, task=task, state=state))
-        groups = []
-        for file in coreg:
-            if blocks & file:
-                groups.append(sorted(list(blocks & file)))
+        blk_list = set(get_blocks(sub, task=task, state=state))
+        coreg_by_state = []
+        for coreg in coreg_list:
+            if blk_list & coreg:
+                coreg_by_state.append(sorted(list(blk_list & coreg)))
         
-        for group in groups:
-            noise_cov,evoked = baseline_covariance(task, subject, state, block_group=group, baseline=(-.4,-.25), names=names)
-            stc_surf,stc_vol = src_rec(task, subject, state, block_group=group, evoked=evoked, noise_cov=noise_cov, names=names)
+        for group in coreg_by_state:
+            noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, baseline=(-.4,-.25), names=names)
+            stc_surf,stc_vol = src_rec(task, sub, state, block_group=group, evoked=evoked, noise_cov=noise_cov, names=names)
 
 
 #%%
