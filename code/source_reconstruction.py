@@ -81,16 +81,16 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
     
     load_evoked = False
     if not evoked:
-        evoked = dict.fromkeys(names, [])
+        evoked = {name:[] for name in names}
         load_evoked = True
     
-    stc_surf = dict.fromkeys(names, [])
-    stc_vol = dict.fromkeys(names, [])
+    stc_surf = {name:[] for name in names}
+    stc_vol = {name:[] for name in names}
     
     for n,name in enumerate(names):
         for b,block in enumerate(block_group):
             if load_evoked:
-                evoked[name].extend(mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-epo.fif'.format(name, state, block))))
+                evoked[name].extend(mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))))
         evoked[name] = mne.combine_evoked(evoked[name], 'nave')
         
         if surface:
@@ -128,7 +128,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 
                 if not fwd_vol:
                     fwd_vol = mne.read_forward_solution(op.join(stc_path, '{}_{}-{}_volume-fwd.fif'.format(state, '_'.join(block_group), volume)))
-                inv_vol = make_inverse_operator(evoked[name].info, fwd_vol, noise_cov)
+                inv_vol = make_inverse_operator(evoked[name].info, fwd_vol, noise_cov, loose=1)
                 write_inverse_operator(op.join(stc_path, '{}_{}-{}-{}_volume-inv.fif'.format(state, '_'.join(block_group), ('baseline' if baseline_cov else 'empty_room'), volume)), inv_vol)
             
             if compute_stc:
