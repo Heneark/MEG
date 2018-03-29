@@ -96,7 +96,7 @@ from source_reconstruction import baseline_covariance, src_rec
 
 names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
 precision = '0.5cm'
-subjects=subjects[:1]
+
 for sub in subjects:
     coreg_list = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', sub, '*'+precision+'*-trans.fif'))
     for c,coreg in enumerate(coreg_list):

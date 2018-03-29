@@ -22,9 +22,6 @@ def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), 
     if not op.exists(evoked_path):
         os.makedirs(evoked_path)
     
-    epochs = dict.fromkeys(names, [])
-    evoked = dict.fromkeys(names, [])
-    
     for name in names:
         if not baseline:
             use_baseline = (None,0)
@@ -34,6 +31,9 @@ def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), 
             use_baseline = (baseline[0]-t_delay, baseline[1]-t_delay)
         else:
             use_baseline = baseline
+        
+        epochs[name] = []
+        evoked[name] = []
         
         for b,block in enumerate(block_group):
             epochs[name].append(mne.read_epochs(op.join(Analysis_path, task, 'meg', 'Epochs', subject, '{}-{}_{}-epo.fif'.format(name, state, block))))
@@ -65,7 +65,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
     stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate', subject)
     if not op.exists(stc_path):
         os.makedirs(stc_path)
-    trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', '*'+block_group[0]+'*-trans.fif'))[0]
+    trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*'+block_group[0]+'*-trans.fif'))[0]
     
     if not noise_cov and not baseline_cov:
         noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
