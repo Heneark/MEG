@@ -107,7 +107,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 if not fwd_surf:
                     fwd_surf = mne.read_forward_solution(op.join(stc_path, '{}_{}-{}_surface-fwd.fif'.format(state, '_'.join(block_group), surface)))
                 inv_surf = make_inverse_operator(evoked[name].info, fwd_surf, noise_cov)
-                write_inverse_operator(op.join(stc_path, '{}_{}-{}-{}_surface-inv.fif'.format(state, '_'.join(block_group), ('baseline' if baseline_cov else 'empty_room'), surface)), inv_surf)
+                write_inverse_operator(op.join(stc_path, '{}_{}-{}-{}_surface-inv.fif'.format(state, '_'.join(block_group), ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface)), inv_surf)
             
             if compute_stc:
                 if not inv_surf:
@@ -129,7 +129,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 if not fwd_vol:
                     fwd_vol = mne.read_forward_solution(op.join(stc_path, '{}_{}-{}_volume-fwd.fif'.format(state, '_'.join(block_group), volume)))
                 inv_vol = make_inverse_operator(evoked[name].info, fwd_vol, noise_cov, loose=1)
-                write_inverse_operator(op.join(stc_path, '{}_{}-{}-{}_volume-inv.fif'.format(state, '_'.join(block_group), ('baseline' if baseline_cov else 'empty_room'), volume)), inv_vol)
+                write_inverse_operator(op.join(stc_path, '{}_{}-{}-{}_volume-inv.fif'.format(state, '_'.join(block_group), ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume)), inv_vol)
             
             if compute_stc:
                 if not inv_vol:

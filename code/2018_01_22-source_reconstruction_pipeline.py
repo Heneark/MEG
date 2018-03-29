@@ -61,6 +61,7 @@ from anat import BEM, src_space
 # TERMINAL COMMAND
 #==============================================================================
 # while read p; do mne make_scalp_surfaces -s $p -o; done < bash_subject_list.txt
+# # creates SUBJECTS_DIR/<subject>/bem/<subject>-head-dense.fif
 #==============================================================================
 
 

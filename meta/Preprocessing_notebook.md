@@ -601,7 +601,7 @@ _**Corrected when coil proportions shouldn't be kept; all others should be zero 
 
 067
 ---
-Surface inner skull is not completely inside surface outer skull
+Surface inner skull is not completely inside surface outer skull => fixed with make_bem_model(..., conductivity=[0.3])
 
 
 087
@@ -619,4 +619,4 @@ No head-dense.fif, coregistration gui works anyway (same for subjects 083 and 09
 
 054
 ---
-Noise data are from the day before, created a copy changing its name to match the day of acquisition (same for subjects 068 and 109)
+Noise data are from the day before (same for subjects 068 and 109) => updated csv_io not to get the error
