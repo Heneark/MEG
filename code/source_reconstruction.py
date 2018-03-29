@@ -22,6 +22,9 @@ def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), 
     if not op.exists(evoked_path):
         os.makedirs(evoked_path)
     
+    epochs = dict()
+    evoked = dict()
+    
     for name in names:
         if not baseline:
             use_baseline = (None,0)
