@@ -68,7 +68,7 @@ def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), 
     return noise_cov,evoked
 
 
-def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, baseline_cov=True, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], mindist=5, method="dSPM"):
+def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, fsaverage=True, baseline_cov=True, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], mindist=5, method="dSPM"):
     """
     If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
     If compute_inv=True, compute and save inverse solution.
@@ -116,8 +116,8 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
         load_evoked = True
     
     # Initialise SourceEstimates dict
-    stc_surf = {name:[] for name in names}
-    stc_vol = {name:[] for name in names}
+    stc_surf = dict.fromkeys(names)
+    stc_vol = dict.fromkeys(names)
     
     for name in names:
         # Load Evokeds if not provided and combine the block_group
@@ -163,6 +163,13 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 stc_surf[name] = apply_inverse(evoked[name], inv_surf, method=method)
                 stc_surf[name].subject = subject
                 stc_surf[name].save(stc_surf_file)
+            
+            if fsaverage:
+                if not stc_surf[name]:
+                    stc_surf[name] = mne.read_source_estimate(stc_surf_file)
+                fs_stc = mne.morph_data(subject, 'fsaverage', stc_surf[name], n_jobs=4)
+                fs_stc.subject = subject + '_fsaverage'
+                fs_stc.save(stc_surf_file + '-fsaverage')
         
         # Do volume SourceEstimate
         if volume:
@@ -214,17 +221,16 @@ def fs_average(task, subject, state, block_group, stc=None, surface='ico4', name
     # Initialise SourceEstimates dict if not provided
     load_stc = False
     if not stc:
-        stc = {name:[] for name in names}
+        stc = dict.fromkeys(names)
         load_stc = True
     
-    for name in names:
-        stc_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
-        
+    for name in list(stc.keys()):
         # Load SourceEstimates if not provided
+        stc_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
         if load_stc:
             stc[name] = mne.read_source_estimate(stc_file)
         
         # Morph and save SourceEstimate
         fs_stc = mne.morph_data(subject, 'fsaverage', stc, n_jobs=4)
-        fs_stc.subject = subject + '_fsaverage
+        fs_stc.subject = subject + '_fsaverage'
         fs_stc.save(stc_file + '-fsaverage')

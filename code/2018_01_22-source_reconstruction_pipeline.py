@@ -94,7 +94,7 @@ from preproc import process, epoch, empty_room_covariance
 
 
 #%% SOURCE RECONSTRUCTION
-from source_reconstruction import baseline_covariance, src_rec, fs_average
+from source_reconstruction import baseline_covariance, src_rec
 
 names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
 precision = '0.5cm'
@@ -112,14 +112,8 @@ for sub in subjects:
                 coreg_by_state.append(sorted(list(blk_list & coreg)))
         
         for group in coreg_by_state:
-            noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, baseline=(-.4,-.25), names=names)
-            stc_surf,stc_vol = src_rec(task, sub, state, block_group=group, evoked=evoked, noise_cov=noise_cov, names=names)
-            fs_average(task, sub, state, block_group=group, stc=stc_surf)
-
-
-#%%
-#import morphing
-#morphing.average(task=task, subjects=subjects)
+#            noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, baseline=(-.4,-.25), names=names)
+            stc_surf,stc_vol = src_rec(task, sub, state, block_group=group, names=names)
 
 
 #%%
