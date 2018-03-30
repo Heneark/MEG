@@ -13,8 +13,17 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), t_delay=.3, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded']):
     """
-    
+    Returns baseline noise covariance for the block_group and a dict containing a list of Evoked (for each block in block_group) assigned to their name.
+    Parameters:
+        block_group: list of coregistered blocks of the same state to be combined
+        baseline: baseline to apply as a tuple (if not provided, (None,0) will be used)
+        t_delay: for T peak Epochs, shift the baseline by subtracting t_delay
+        names: list of Epoch name
+    Output:
+        Analyses/<task>/meg/Covariance/<subject>/<name>-<state>_<block_group>-cov.fif (Baseline covariance for the block_group)
+        Analyses/<task>/meg/Evoked/<subject>/<name>-<state>_<block>-ave.fif (Evoked per block)
     """
+    # Define pathes
     cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
     if not op.exists(cov_path):
         os.makedirs(cov_path)
@@ -22,10 +31,12 @@ def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), 
     if not op.exists(evoked_path):
         os.makedirs(evoked_path)
     
+    # Initialise Epochs and Evokeds dict
     epochs = dict()
     evoked = dict()
     
     for name in names:
+        # Use the proper baseline according the the Epochs name
         if not baseline:
             use_baseline = (None,0)
         elif 'R_ECG' in name:
@@ -39,30 +50,47 @@ def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), 
         evoked[name] = []
         
         for b,block in enumerate(block_group):
+            # Apply baseline
             epochs[name].append(mne.read_epochs(op.join(Analysis_path, task, 'meg', 'Epochs', subject, '{}-{}_{}-epo.fif'.format(name, state, block))))
             epochs[name][b].apply_baseline(use_baseline)
             
+            # Save Evoked
             evoked[name].append(epochs[name][b].average())
             evoked[name][b].save(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block)))
         
+        # Compute and save noise covariance
         epochs[name] = mne.concatenate_epochs(epochs[name])
-        
         noise_cov = mne.compute_covariance(epochs[name], n_jobs=4)
+        
         cov_file = op.join(cov_path, '{}-{}_{}-cov.fif'.format(name, state, '_'.join(block_group)))
         mne.write_cov(cov_file, noise_cov)
     
     return noise_cov,evoked
 
 
-def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, baseline_cov=True, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], method="dSPM"):
+def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, baseline_cov=True, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], mindist=5, method="dSPM"):
     """
-    Output (Source_Rec directory): *'-fwd.fif' (forward model), *'-inv.fif' (inverse model), *'-rh.stc' (right hemisphere source estimates), and *'-lh.stc' (left hemisphere).
+    If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
+    If compute_inv=True, compute and save inverse solution.
+    If compute_stc=True, compute and save SourceEstimate.
+    Do this for surface if provided and for volume if provided.
     Parameters:
-        states: list of the states.
-        subjects: list of the subjects, default to all subjects available for the task.
-        spacing: 'oct5', 'ico4', 'oct6', or 'ico5' according to mne source_space. Should be as specified for anatomy.BEM().
-        method: source reconstruction method.
+        block_group: list of coregistered blocks of the same state to be combined
+        evoked: dict of Evoked assigned to their name as returned by baseline_covariance() (will be loaded if not provided)
+        noise_cov: if baseline_cov=True, should be empty room noise covariance, else should be baseline covariance (will be loaded if not provided)
+        bem_spacing: BEM surface downsampling as specified for anat.BEM()
+        surface: source space subdivision as specified for anat.src_space()
+        volume: distance between volume sources as `pos` specified for anat.src_space()
+        names: list of Epoch name
+        mindist: minimum distance (in mm) of sources from inner skull surface (see mne.make_forward_solution)
+        method: source reconstruction method (see mne.minimum_norm.apply_inverse)
+    Output (Analyses/<task>/meg/SourceEstimate/<subject>/):
+        *'-fwd.fif' (forward model)
+        *'-inv.fif' (inverse model)
+        *'-lh.stc' (left hemisphere SourceEstimate)
+        *'-rh.stc' (right hemisphere SourceEstimate)
     """
+    # Define pathes
     evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
     cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
     stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate', subject)
@@ -70,71 +98,98 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
         os.makedirs(stc_path)
     trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*'+block_group[0]+'*-trans.fif'))[0]
     
-    if not noise_cov and not baseline_cov:
-        noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
-    
-    bem_sol = mne.read_bem_solution(op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', '{}_{}_bem_solution.fif'.format(subject, bem_spacing)))
+    # Load source space
+    bem_sol = mne.read_bem_solution(op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', '{}_{}_bem_solution.fif'.format(subject, (bem_spacing if bem_spacing else 'full'))))
     if surface:
         src_surf = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_surface-src.fif'.format(subject, surface)))
     if volume:
         src_vol = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_volume-src.fif'.format(subject, volume)))
     
+    # Load empty room noise covariance if appropriate
+    if not noise_cov and not baseline_cov:
+        noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
+    
+    # Initialise Evokeds dict if not provided
     load_evoked = False
     if not evoked:
         evoked = {name:[] for name in names}
         load_evoked = True
     
+    # Initialise SourceEstimates dict
     stc_surf = {name:[] for name in names}
     stc_vol = {name:[] for name in names}
     
-    for n,name in enumerate(names):
-        for b,block in enumerate(block_group):
+    for name in names:
+        # Load Evokeds if not provided and combine the block_group
+        for block in block_group:
             if load_evoked:
                 evoked[name].extend(mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))))
         evoked[name] = mne.combine_evoked(evoked[name], 'nave')
         
-        if surface:
-            fwd_surf = None
-            if compute_fwd and not n:
-                fwd_surf = mne.make_forward_solution(evoked[name].info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=5.0, n_jobs=4)
-                mne.write_forward_solution(op.join(stc_path, '{}_{}-{}_surface-fwd.fif'.format(state, '_'.join(block_group), surface)), fwd_surf, overwrite = True)
-            
-            inv_surf = None
-            if compute_inv and not n:
-                if baseline_cov and not noise_cov:
-                    noise_cov = mne.read_cov(op.join(cov_path, '{}-{}_{}-cov.fif'.format(name, state, '_'.join(block_group))))
-                
-                if not fwd_surf:
-                    fwd_surf = mne.read_forward_solution(op.join(stc_path, '{}_{}-{}_surface-fwd.fif'.format(state, '_'.join(block_group), surface)))
-                inv_surf = make_inverse_operator(evoked[name].info, fwd_surf, noise_cov)
-                write_inverse_operator(op.join(stc_path, '{}_{}-{}-{}_surface-inv.fif'.format(state, '_'.join(block_group), ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface)), inv_surf)
-            
-            if compute_stc:
-                if not inv_surf:
-                    inv_surf = read_inverse_operator(op.join(stc_path, '{}_{}-{}-{}_surface-inv.fif'.format(state, '_'.join(block_group), ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface)))
-                stc_surf[name] = apply_inverse(evoked[name], inv_surf, method=method)
-                stc_surf[name].save(op.join(stc_path, '{}-{}_{}-{}-{}_surface'.format(name, state, '_'.join(block_group), ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface)))
+        # Save files
+        fwd_surf_file = op.join(stc_path, '{}_{}-{}-surface_{}-fwd.fif'.format(state, '_'.join(block_group), name, surface))
+        fwd_vol_file = op.join(stc_path, '{}_{}-{}-volume_{}-fwd.fif'.format(state, '_'.join(block_group), name, volume))
+        inv_surf_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
+        inv_vol_file = op.join(stc_path, '{}_{}-{}-{}-volume_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume))
+        stc_surf_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
+        stc_vol_file = op.join(stc_path, '{}_{}-{}-{}-volume_{}'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume))
         
-        if volume:
-            fwd_vol = None
-            if compute_fwd and not n:
-                fwd_vol = mne.make_forward_solution(evoked[name].info, trans=trans_file, src=src_vol, bem=bem_sol, meg=True, eeg=False, mindist=5.0, n_jobs=4)
-                mne.write_forward_solution(op.join(stc_path, '{}_{}-{}_volume-fwd.fif'.format(state, '_'.join(block_group), volume)), fwd_vol, overwrite = True)
+        # Do surface SourceEstimate
+        if surface:
+            # Compute forward solution
+            fwd_surf = None
+            if compute_fwd:
+                fwd_surf = mne.make_forward_solution(evoked[name].info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
+                mne.write_forward_solution(fwd_surf_file, fwd_surf, overwrite = True)
             
-            inv_vol = None
-            if compute_inv and not n:
+            # Compute inverse solution
+            inv_surf = None
+            if compute_inv:
+                # Load baseline covariance if appropriate
                 if baseline_cov and not noise_cov:
                     noise_cov = mne.read_cov(op.join(cov_path, '{}-{}_{}-cov.fif'.format(name, state, '_'.join(block_group))))
                 
-                if not fwd_vol:
-                    fwd_vol = mne.read_forward_solution(op.join(stc_path, '{}_{}-{}_volume-fwd.fif'.format(state, '_'.join(block_group), volume)))
-                inv_vol = make_inverse_operator(evoked[name].info, fwd_vol, noise_cov, loose=1)
-                write_inverse_operator(op.join(stc_path, '{}_{}-{}-{}_volume-inv.fif'.format(state, '_'.join(block_group), ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume)), inv_vol)
+                # Load forward solution
+                if not fwd_surf:
+                    fwd_surf = mne.read_forward_solution(fwd_surf_file)
+                inv_surf = make_inverse_operator(evoked[name].info, fwd_surf, noise_cov)
+                write_inverse_operator(inv_surf_file, inv_surf)
             
+            # Compute SourceEstimate
             if compute_stc:
+                # Load inverse solution
+                if not inv_surf:
+                    inv_surf = read_inverse_operator(inv_surf_file)
+                stc_surf[name] = apply_inverse(evoked[name], inv_surf, method=method)
+                stc_surf[name].save(stc_surf_file)
+        
+        # Do volume SourceEstimate
+        if volume:
+            # Compute forward solution
+            fwd_vol = None
+            if compute_fwd:
+                fwd_vol = mne.make_forward_solution(evoked[name].info, trans=trans_file, src=src_vol, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
+                mne.write_forward_solution(fwd_vol_file, fwd_vol, overwrite = True)
+            
+            # Compute inverse solution
+            inv_vol = None
+            if compute_inv:
+                # Load baseline covariance if appropriate
+                if baseline_cov and not noise_cov:
+                    noise_cov = mne.read_cov(op.join(cov_path, '{}-{}_{}-cov.fif'.format(name, state, '_'.join(block_group))))
+                
+                # Load forward solution
+                if not fwd_vol:
+                    fwd_vol = mne.read_forward_solution(fwd_vol_file)
+                inv_vol = make_inverse_operator(evoked[name].info, fwd_vol, noise_cov, loose=1)
+                write_inverse_operator(inv_vol_file, inv_vol)
+            
+            # Compute SourceEstimate
+            if compute_stc:
+                # Load inverse solution
                 if not inv_vol:
-                    inv_vol = read_inverse_operator(op.join(stc_path, '{}_{}-{}-{}_volume-inv.fif'.format(state, '_'.join(block_group), ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume)))
+                    inv_vol = read_inverse_operator(inv_vol_file)
                 stc_vol[name] = apply_inverse(evoked[name], inv_vol, method=method)
-                stc_vol[name].save(op.join(stc_path, '{}-{}_{}-{}-{}_volume'.format(name, state, '_'.join(block_group), ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume)))
+                stc_vol[name].save(stc_vol_file)
     
     return stc_surf,stc_vol

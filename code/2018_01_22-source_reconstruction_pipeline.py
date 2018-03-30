@@ -15,11 +15,12 @@ from header import *
 
 #%% PARAMETERS
 #==============================================================================
+t0 = time.perf_counter()
 task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-reject = ['004', '010', '067']
+reject = ['004', '010']
 for sub in reject:
     if sub in subjects:
         subjects.remove(sub)
@@ -97,7 +98,7 @@ from source_reconstruction import baseline_covariance, src_rec
 
 names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
 precision = '0.5cm'
-
+subjects=['067']
 for sub in subjects:
     coreg_list = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', sub, '*'+precision+'*-trans.fif'))
     for c,coreg in enumerate(coreg_list):
@@ -118,3 +119,10 @@ for sub in subjects:
 #%%
 #import morphing
 #morphing.average(task=task, subjects=subjects)
+
+
+#%%
+t1 = time.perf_counter()
+T = t1 - t0
+print(colored(time.strftime('Finished %c',time.localtime()),'blue'))
+print(colored('Elapsed time: {d}d {h}h {m}min {s}s'.format(s=round(T%60), m=round((T - T%60)%(60*60)/60), h=round((T - T%(60*60))%(24*60*60)/(60*60)), d=round((T - T%(24*60*60))/(24*60*60))), 'green'))
