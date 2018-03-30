@@ -161,6 +161,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 if not inv_surf:
                     inv_surf = read_inverse_operator(inv_surf_file)
                 stc_surf[name] = apply_inverse(evoked[name], inv_surf, method=method)
+                stc_surf[name].subject = subject
                 stc_surf[name].save(stc_surf_file)
         
         # Do volume SourceEstimate
@@ -190,6 +191,40 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 if not inv_vol:
                     inv_vol = read_inverse_operator(inv_vol_file)
                 stc_vol[name] = apply_inverse(evoked[name], inv_vol, method=method)
+                stc_vol[name].subject = subject
                 stc_vol[name].save(stc_vol_file)
     
     return stc_surf,stc_vol
+
+
+def fs_average(task, subject, state, block_group, stc=None, surface='ico4', names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], baseline_cov=True):
+    """
+    Morph surface SourceEstimate to fsaverage (does not work with volume).
+    Parameters:
+        block_group: list of coregistered blocks of the same state to be combined
+        surface: source space subdivision as specified for src_rec()
+        names: list of Epoch name
+    Output (Analyses/<task>/meg/SourceEstimate/<subject>/):
+        *'-fsaverage-lh.stc' (left hemisphere SourceEstimate)
+        *'-fsaverage-rh.stc' (right hemisphere SourceEstimate)
+    """
+    # Define pathes
+    stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate', subject)
+    
+    # Initialise SourceEstimates dict if not provided
+    load_stc = False
+    if not stc:
+        stc = {name:[] for name in names}
+        load_stc = True
+    
+    for name in names:
+        stc_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
+        
+        # Load SourceEstimates if not provided
+        if load_stc:
+            stc[name] = mne.read_source_estimate(stc_file)
+        
+        # Morph and save SourceEstimate
+        fs_stc = mne.morph_data(subject, 'fsaverage', stc, n_jobs=4)
+        fs_stc.subject = subject + '_fsaverage
+        fs_stc.save(stc_file + '-fsaverage')

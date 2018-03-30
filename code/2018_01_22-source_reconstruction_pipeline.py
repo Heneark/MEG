@@ -94,11 +94,11 @@ from preproc import process, epoch, empty_room_covariance
 
 
 #%% SOURCE RECONSTRUCTION
-from source_reconstruction import baseline_covariance, src_rec
+from source_reconstruction import baseline_covariance, src_rec, fs_average
 
 names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
 precision = '0.5cm'
-subjects=['067']
+
 for sub in subjects:
     coreg_list = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', sub, '*'+precision+'*-trans.fif'))
     for c,coreg in enumerate(coreg_list):
@@ -114,6 +114,7 @@ for sub in subjects:
         for group in coreg_by_state:
             noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, baseline=(-.4,-.25), names=names)
             stc_surf,stc_vol = src_rec(task, sub, state, block_group=group, evoked=evoked, noise_cov=noise_cov, names=names)
+            fs_average(task, sub, state, block_group=group, stc=stc_surf)
 
 
 #%%
