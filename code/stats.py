@@ -35,12 +35,26 @@ subjects.sort()
 
 #%% STATS
 names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
-precision = '0.5cm'
 noise_cov = 'baseline_cov'
-fsaverage = '-fsaverage'#o
+fsaverage = '-fsaverage'#or False
 stc_ext = '-lh.stc'
 
 stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate')
+zeros()
+for n,name in enumerate(names[:1]):
+    for st,state in enumerate(states[:1]):
+        for s,sub in enumerate(subjects[:6]):
+            file = glob.glob(op.join(stc_path, sub, state+'*'+name+'*'+noise_cov+'*'+(fsaverage if fsaverage else '')+stc_ext))
+            print('Loading', file[0].strip(stc_ext))
+            tmp = mne.read_source_estimate(file[0].strip(stc_ext))
+            vertices = np.concatenate([['lh_' + str(x) for x in tmp.lh_vertno],['rh_' + str(x) for x in tmp.rh_vertno]])
+            data = xr.DataArray(tmp.data, dims=['src', 'time'], coords={'src':vertices, 'time':tmp.times})
+            if not n and not s and not st:
+                stc = data
+            else:
+                stc = xr.concat(stc, data, 'subject')
+        if not n and not st:
+            stc.assign_coords(subject=subjects[:6])
 
 for sub in subjects:
     coreg_list = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', sub, '*'+precision+'*-trans.fif'))
