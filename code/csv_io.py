@@ -219,7 +219,7 @@ def state_count(state, pathBase = Analysis_path):
 
 
 
-#%% 26/02/2018
+#%% 26/02/2018 - MASTERFILE
 
 # GET CHANNEL NAME
 # =============================================================================
@@ -263,3 +263,14 @@ def get_chan_name(subject, chan_type:"'ecg_chan', 'eogH_chan', 'eogV_chan', 'res
             chans = chans[0]
         return chans
 # =============================================================================
+
+
+def expertise(subject):
+    """
+    Returns the expertise (='group': novice='N' or expert='E') of the input subject, as specified in ../meta/MEG_ANALYSIS_MASTERFILE.csv.
+    """
+    master = pd.read_csv('../meta/MEG_ANALYSIS_MASTERFILE.csv', header=3, dtype={'id':str})
+    sub_data = master[(master.id == subject)].reset_index(drop=True)
+    
+    group = sub_data.get_value(0,'group')
+    return group
