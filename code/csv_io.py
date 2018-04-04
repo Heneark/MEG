@@ -234,7 +234,7 @@ def get_chan_name(subject, chan_type:"'ecg_chan', 'eogH_chan', 'eogV_chan', 'res
     master = pd.read_csv('../meta/MEG_ANALYSIS_MASTERFILE.csv', header=3, dtype={'id':str})
     sub_data = master[(master.id == subject)].reset_index(drop=True)
     
-    channel = sub_data.get_value(0,chan_type)
+    channel = sub_data.at[0,chan_type]
     if type(channel) is not str:
         raise ValueError('Channel name not found for this type. Please edit masterfile.')
     
@@ -272,5 +272,5 @@ def expertise(subject):
     master = pd.read_csv('../meta/MEG_ANALYSIS_MASTERFILE.csv', header=3, dtype={'id':str})
     sub_data = master[(master.id == subject)].reset_index(drop=True)
     
-    group = sub_data.get_value(0,'group')
+    group = sub_data.at[0,'group']
     return group
