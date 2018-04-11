@@ -7,7 +7,8 @@ Created on Thu Jun 22 15:16:49 2017
 #IMPORT PACKAGES, DEFINE ENVIRONMENT VARIABLES, CREATE PATHES
 #==============================================================================
 import matplotlib
-matplotlib.use('Agg') #not to show BEM surfaces and save them instead
+if matplotlib.get_backend() is not 'Agg':
+    matplotlib.use('Agg') #not to show BEM surfaces and save them instead
 from header import *
 #==============================================================================
 

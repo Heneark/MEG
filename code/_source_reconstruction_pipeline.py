@@ -20,12 +20,12 @@ task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-reject = ['004', '010']
+reject = ['004', '010', '072', '109']
 for sub in reject:
     if sub in subjects:
         subjects.remove(sub)
 
-# # Last subject preprocessed: 109
+# # Last subject preprocessed: 109, verbose='WARNING'
 # # Future subjects list:
 #subjects = subjects[subjects.index('109')+1:]
 subjects.sort()
@@ -110,14 +110,14 @@ for sub in subjects:
         for coreg in coreg_list:
             if blk_list & coreg:
                 coreg_by_state.append(sorted(list(blk_list & coreg)))
-#        
-#        for group in coreg_by_state:
-##            noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, baseline=(-.4,-.25), names=names)
-#            stc_surf,stc_vol = src_rec(task, sub, state, block_group=group, names=names)
+        
+        for group in coreg_by_state:
+            noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, rejection={'mag':2500e-15}, baseline=(-.4,-.25), names=names)
+            stc_surf,stc_vol = src_rec(task, sub, state, evoked=evoked, noise_cov=noise_cov, block_group=group, names=names)
 
 for name in names:
     for state in states:
-        fs_average(task, state, name, subjects=subjects, do_morphing=False)
+        fs_average(task, state, name=name, subjects=subjects, do_morphing=False)
 
 
 #%%

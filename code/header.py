@@ -11,6 +11,7 @@ import glob
 import inspect
 import joblib# allows for parallel processing
 import locale
+import mpl_toolkits.axes_grid1
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt

@@ -24,7 +24,7 @@ pathBase = op.dirname(Analysis_path)
 #Analysis_path = op.join(pathBase, 'Analyses')
 #code_path = op.join(Analysis_path, 'MEG', 'code')
 
-Raw_data_path = op.join(pathBase, 'Raw data')
+Raw_data_path = op.join(pathBase, 'Raw')
 #==============================================================================
 
 

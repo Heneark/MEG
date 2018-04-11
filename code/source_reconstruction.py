@@ -7,15 +7,17 @@ Created on Mon Jul 10 17:42:45 2017
 
 #==============================================================================
 from header import *
+from tqdm import tqdm
 #==============================================================================
 warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 
-def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), t_delay=.3, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded']):
+def baseline_covariance(task, subject, state, block_group, rejection={'mag':2500e-15}, baseline=(-.4,-.25), t_delay=.3, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded']):
     """
     Returns baseline noise covariance for the block_group and a dict containing a list of Evoked (for each block in block_group) assigned to their name.
     Parameters:
         block_group: list of coregistered blocks of the same state to be combined
+        rejection: epoch rejection threshold (default to 2500 fT for magnetometers)
         baseline: baseline to apply as a tuple (if not provided, (None,0) will be used)
         t_delay: for T peak Epochs, shift the baseline by subtracting t_delay
         names: list of Epoch name
@@ -27,6 +29,7 @@ def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), 
     cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
     if not op.exists(cov_path):
         os.makedirs(cov_path)
+    epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
     evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
     if not op.exists(evoked_path):
         os.makedirs(evoked_path)
@@ -50,13 +53,33 @@ def baseline_covariance(task, subject, state, block_group, baseline=(-.4,-.25), 
         evoked[name] = []
         
         for b,block in enumerate(block_group):
+            epochs[name].append(mne.read_epochs(op.join(epochs_path, '{}-{}_{}-epo.fif'.format(name, state, block))))
+            
+            evoked_file = op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))
+            
+            # Apply rejection
+            if rejection:
+                epochs[name][b].drop_bad(rejection)
+                # Save drop log
+                epochs[name][b].plot_drop_log()
+                plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.pdf'.format(name, state, block)), transparent=True)
+                plt.close()
+                
+                drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
+                with open(drop_log, 'a') as fid:
+                    fid.write('{} {} epochs dropped\t{}\n'.format(evoked_file.split('/')[-2:], len(np.array(epochs[name][b].drop_log)[np.where(epochs[name][b].drop_log)]), rejection))
+        
             # Apply baseline
-            epochs[name].append(mne.read_epochs(op.join(Analysis_path, task, 'meg', 'Epochs', subject, '{}-{}_{}-epo.fif'.format(name, state, block))))
             epochs[name][b].apply_baseline(use_baseline)
             
             # Save Evoked
             evoked[name].append(epochs[name][b].average())
-            evoked[name][b].save(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block)))
+            evoked[name][b].save(evoked_file)
+            
+            # Plot ERP time course
+            evoked[name][b].plot_joint(title = 'Subject {} - {} {}\n{}'.format(subject, state, block, name))
+            plt.savefig(op.join(evoked_path, '{}-{}_{}-ERP.pdf'.format(name, state, block)), transparent=True)
+            plt.close()
         
         # Compute and save noise covariance
         epochs[name] = mne.concatenate_epochs(epochs[name])
@@ -73,11 +96,12 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
     If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
     If compute_inv=True, compute and save inverse solution.
     If compute_stc=True, compute and save SourceEstimate.
+    If fsaverage=True, morph SourceEstimate to fsaverage and save it.
     Do this for surface if provided and for volume if provided.
     Parameters:
         block_group: list of coregistered blocks of the same state to be combined
         evoked: dict of Evoked assigned to their name as returned by baseline_covariance() (will be loaded if not provided)
-        noise_cov: if baseline_cov=True, should be empty room noise covariance, else should be baseline covariance (will be loaded if not provided)
+        noise_cov: if baseline_cov=True, should be baseline covariance, else should be empty room noise covariance (will be loaded if not provided)
         bem_spacing: BEM surface downsampling as specified for anat.BEM()
         surface: source space subdivision as specified for anat.src_space()
         volume: distance between volume sources as `pos` specified for anat.src_space()
@@ -89,6 +113,8 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
         *'-inv.fif' (inverse model)
         *'-lh.stc' (left hemisphere SourceEstimate)
         *'-rh.stc' (right hemisphere SourceEstimate)
+        *'-fsaverage-lh.stc' (left hemisphere morphed SourceEstimate)
+        *'-fsaverage-rh.stc' (right hemisphere morphed SourceEstimate)
     """
     # Define pathes
     evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
@@ -187,7 +213,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 # Load forward solution
                 if not fwd_vol:
                     fwd_vol = mne.read_forward_solution(fwd_vol_file)
-                inv_vol = make_inverse_operator(evoked[name].info, fwd_vol, noise_cov, loose=1) if not do_morphing else '')+'-lh.stc'
+                inv_vol = make_inverse_operator(evoked[name].info, fwd_vol, noise_cov, loose=1)
                 write_inverse_operator(inv_vol_file, inv_vol)
             
             # Compute SourceEstimate
@@ -201,101 +227,98 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
     return stc_surf,stc_vol
 
 
-def fs_average(task, state, name, subjects=None, do_morphing=True, surface='ico4', baseline_cov=True):
+def fs_average(task, state, name, subjects=None, do_morphing=True, overwrite=False, surface='ico4', baseline_cov=True):
     """
+    If do_morphing=True, morph all SourceEstimates to fsaverage, else expecting morphing to be already performed.
+    For each subject, combine all SourceEstimates for the input state using the weighting of mne.evoked.combine_evoked.
+    Finally, compute the grand average of all subjects.
+    Parameters:
+        subjects: list of subjects to include. If not provided (default), set to all subjects of the task
+        overwrite: if True, combining and weighting will be performed again even if the corresponding file already exists.
+        surface: source space subdivision as specified for src_rec()
+        baseline_cov: if True, expecting baseline noise covariance, else empty room noise covariance
+    Output (Analyses/<task>/meg/SourceEstimate/fsaverage/):
+        <subject>/<state>-<name>-*-<subject>_to_fs-lh.stc (morphed and combined left hemisphere SourceEstimate)
+        <subject>/*-<subject>_to_fs-rh.stc (likewise for right hemisphere)
+        <state>-<name>-*-lh.stc' (grand average left hemisphere SourceEstimate)
+        <state>-<name>-*-rh.stc' (likewise for right hemisphere)
+    """
+    mne.set_log_level(False) # Don't pollute the terminal each time a file is loaded.
     
-    """
     # Define pathes
     stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate')
     evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked')
-    fs_all_file = op.join(stc_path, 'fsaverage', '{}-{}-{}-surface_{}-fsaverage'.format(state, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
+    gd_average_file = op.join(stc_path, 'fsaverage', '{}-{}-{}-surface_{}'.format(state, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
     
+    fs_stc_all = []
     if not subjects:
         subjects = get_subjlist(task)
+    print(colored('Averaging '+('and morphing ' if do_morphing else '')+name+' for state '+state, 'cyan'))
     
-    for name in names:
-        fs_stc_all = []
-        for s,sub in enumerate(subjects):
-            # Define files
-            stc_file = op.join(stc_path, sub, '{}_*-{}-{}-surface_{}{}-lh.stc'.format(state, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, ('-fsaverage' if not do_morphing else '')))
-            fs_file = op.join(stc_path, 'fsaverage', sub, '{}-{}-{}-surface_{}-fsaverage'.format(state, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
-            if not op.isdir(op.split(fs_file)[-1]):
-                os.makedirs(op.split(fs_file)[-1])
+    for s,sub in enumerate(tqdm(subjects)):
+        # Define files
+        stc_file = op.join(stc_path, sub, '{}_*-{}-{}-surface_{}{}-lh.stc'.format(state, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, ('-fsaverage' if not do_morphing else '')))
+        fs_file = op.join(stc_path, 'fsaverage', sub, '{}-{}-{}-surface_{}-{}_to_fs'.format(state, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, sub))
+        if not op.isdir(op.split(fs_file)[0]):
+            os.makedirs(op.split(fs_file)[0])
+        
+        # If the combined SourceEstimate already exists, just load it (if you do not wish to overwrite it)
+        if op.isfile(fs_file) and not overwrite:
+            fs_stc_all.append(mne.read_source_estimate(fs_file))
+            continue
+        
+        files = glob.glob(stc_file) # All SourceEstimates of this subject for this state
+        stc_all = []
+        nave_all = []
+        
+        for file in files:
+            if len(files) > 1: print(colored(op.split(file[:-7])[-1], 'yellow'))
+            stc = mne.read_source_estimate(file[:-7])
             
-            files = glob.glob(stc_file)
-            stc_all = []
-            nave_all = []
-            
-            if len(files) == 1:
-                stc = mne.read_source_estimate(files[0][:-7])
-            else:
-                # If there are several SourceEstimate for this state, combine them using the same weighting as mne.evoked.combine_evoked:
-                for file in files:
-                    stc_all.append(mne.read_source_estimate(file[:-7]))
-                    
-                    blocks = file[file.index(state+'_'):file.index('-'+name)].split('_')[1:]
-                    nave_blk = []
-                    for blk in blocks:
-                        evoked_file = op.join(evoked_path, sub, name+'-'+state+'_'+blk+'-ave.fif')
-                        nave_blk.append(mne.read_evokeds(evoked_file)[0].nave)
-                    
-                    if len(nave_blk) == 1:
-                        nave = nave_blk[0]
-                    else:
-                        # If there are several blocks corresponding to this single SourceEstimate, then the Evoked have already been combined.
-                        # Thus, nave should be reset according to mne.evoked.combine_evoked:
-                        weights = np.array([n for n in nave_blk], float)
-                        weights /= weights.sum()
-                        nave = max(int(round(1. / sum( w ** 2 / n for w, n in zip(weights, nave_blk)))), 1)
-                    
-                    nave_all.append(nave)
-                
-                # Weight and combine:
-                stc = stc_all[0].copy()
-                weights = np.array([n for n in nave_blk], float)
-                weights /= weights.sum()
-                stc.data = sum(w * s.data for w, s in zip(weights, stc_all))
-            
+            # Morph to fsaverage
             if do_morphing:
-                fs_stc_all.append(mne.morph_data(subject, 'fsaverage', stc, n_jobs=4))
+                stc_all.append(mne.morph_data(subject, 'fsaverage', stc, n_jobs=4, verbose=True))
             else:
-                fs_stc_all.append(stc.copy())
+                stc_all.append(stc.copy())
             
-            fs_stc_all[s].save(fs_file + '-fsaverage')
+            # If there are several SourceEstimate for this state, combine them using the same weighting as mne.evoked.combine_evoked
+            if len(files) > 1:
+                blocks = file[file.index(state+'_'):file.index('-'+name)].split('_')[1:]
+                nave_blk = []
+                
+                # To weight, retrieve the number of events (nave) from the Evoked
+                for blk in blocks:
+                    evoked_file = op.join(evoked_path, sub, name+'-'+state+'_'+blk+'-ave.fif')
+                    nave_blk.append(mne.read_evokeds(evoked_file, verbose=False)[0].nave)
+                
+                # If there are several blocks corresponding to this single SourceEstimate, then the Evoked have already been combined.
+                # Thus, nave should be reset according to mne.evoked.combine_evoked:
+                if len(nave_blk) > 1:
+                    print(colored('Re-weighting blocks {}...'.format(blocks), 'yellow'))
+                    weights = np.array([n for n in nave_blk], float)
+                    weights /= weights.sum()
+                    nave = max(int(round(1. / sum( w ** 2 / n for w, n in zip(weights, nave_blk)))), 1)
+                else:
+                    nave = nave_blk[0]
+                
+                nave_all.append(nave)
         
-        fs_stc = fs_stc_all[0].copy()
-        data = [s.data for s in fs_stc_all]
-        fs_stc.data = np.mean(data, axis=0)
-        fs_stc.save(fs_all_file)
-
-
-def fs_average(task, subject, state, block_group, stc=None, surface='ico4', names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], baseline_cov=True):
-    """
-    Morph surface SourceEstimate to fsaverage (does not work with volume).
-    Parameters:
-        block_group: list of coregistered blocks of the same state to be combined
-        surface: source space subdivision as specified for src_rec()
-        names: list of Epoch name
-    Output (Analyses/<task>/meg/SourceEstimate/<subject>/):
-        *'-fsaverage-lh.stc' (left hemisphere SourceEstimate)
-        *'-fsaverage-rh.stc' (right hemisphere SourceEstimate)
-    """
-    # Define pathes
-    stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate', subject)
-    
-    # Initialise SourceEstimates dict if not provided
-    load_stc = False
-    if not stc:
-        stc = dict.fromkeys(names)
-        load_stc = True
-    
-    for name in list(stc.keys()):
-        # Load SourceEstimates if not provided
-        stc_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
-        if load_stc:
-            stc[name] = mne.read_source_estimate(stc_file)
+        stc = stc_all[0].copy()
+        if len(files) > 1:
+            # Weight and combine:
+            weights = np.array([n for n in nave_blk], float)
+            weights /= weights.sum()
+            stc.data = sum(w * s.data for w, s in zip(weights, stc_all))
         
-        # Morph and save SourceEstimate
-        fs_stc = mne.morph_data(subject, 'fsaverage', stc, n_jobs=4)
-        fs_stc.subject = subject + '_fsaverage'
-        fs_stc.save(stc_file + '-fsaverage')
+        # Save this subject's morphed SourceEstimate, all blocks of this state combined
+        stc.save(fs_file)
+        fs_stc_all.append(stc.copy())
+    
+    # Grand average
+    fs_stc = fs_stc_all[0].copy()
+    data = [s.data for s in fs_stc_all]
+    fs_stc.data = np.mean(data, axis=0)
+    
+    fs_stc.save(gd_average_file)
+    print(colored(gd_average_file, 'green'))
+    mne.set_log_level(True)
