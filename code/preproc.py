@@ -25,6 +25,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 # # eog = raw.copy().pick_types(meg=False, ref_meg=False, eog=True)
 # # ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
 
+# epo = create_ecg_epochs(raw_ECG, reject={'mag':3000e-15}, tmin=-.5, tmax=.8, baseline=None, picks=mne.pick_types(raw_ECG.info, meg=True, ecg=True, eog=True, stim=True, exclude='bads'))
 # epochs,evoked = epoch(task, subject, state, block, save=False, rejection={'mag':2.5e-12}, tmin=-.5, tmax=.8, baseline=(-.4,-.3), overwrite_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3.5)
 #==============================================================================
 

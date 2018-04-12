@@ -76,12 +76,12 @@ from anat import BEM, src_space
 #%% PREPROCESSING
 from preproc import process, epoch, empty_room_covariance
 
-#for sub in subjects:
-#    empty_room_covariance(task, sub)
-#    for state in states:
-#        for blk in get_blocks(sub, task=task, state=state):
+for sub in ['063', '081']:#subjects:
+    empty_room_covariance(task, sub)
+    for state in states:
+        for blk in get_blocks(sub, task=task, state=state):
 #            raw,raw_ECG = process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
-#            epochs = epoch(task, sub, state, blk, high_pass=.5, low_pass=None)
+            epochs = epoch(task, sub, state, blk, high_pass=.5, low_pass=None, ica_rejection={'mag':7e-12}, ECG_threshold=0.2, EOG_threshold=5, check_ica=True, overwrite_ica=True, fit_ica=True)
 
 
 #%% COREGISTRATION (https://www.slideshare.net/mne-python/mnepython-coregistration)
@@ -112,7 +112,7 @@ for sub in subjects:
                 coreg_by_state.append(sorted(list(blk_list & coreg)))
         
         for group in coreg_by_state:
-            noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, rejection={'mag':2500e-15}, baseline=(-.4,-.25), names=names)
+            noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, rejection={'mag':3500e-15}, baseline=(-.4,-.25), names=names)
             stc_surf,stc_vol = src_rec(task, sub, state, evoked=evoked, noise_cov=noise_cov, block_group=group, names=names)
 
 for name in names:
