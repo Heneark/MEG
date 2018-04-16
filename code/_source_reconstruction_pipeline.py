@@ -20,10 +20,10 @@ task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-reject = ['004', '010', '072', '109']
-for sub in reject:
-    if sub in subjects:
-        subjects.remove(sub)
+#reject = ['004', '010', '072', '109']#004, 010: no ECG; 072, 109: no MRI
+#for sub in reject:
+#    if sub in subjects:
+#        subjects.remove(sub)
 
 # # Last subject preprocessed: 109, verbose='WARNING'
 # # Future subjects list:
@@ -74,14 +74,15 @@ from anat import BEM, src_space
 
 
 #%% PREPROCESSING
-from preproc import process, epoch, empty_room_covariance
+from preproc import process, epoch, empty_room_covariance, check_ecg_epoch
 
-for sub in ['063', '081']:#subjects:
+for sub in subjects[subjects.index('032'):]:
     empty_room_covariance(task, sub)
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):
-#            raw,raw_ECG = process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
-            epochs = epoch(task, sub, state, blk, high_pass=.5, low_pass=None, ica_rejection={'mag':7e-12}, ECG_threshold=0.2, EOG_threshold=5, check_ica=True, overwrite_ica=True, fit_ica=True)
+##            raw,raw_ECG = process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
+#            epochs = epoch(task, sub, state, blk, high_pass=.5, low_pass=None, ica_rejection={'mag':7e-12}, ECG_threshold=0.2, EOG_threshold=5)
+            check_ecg_epoch(task, sub, state, blk, save=True)
 
 
 #%% COREGISTRATION (https://www.slideshare.net/mne-python/mnepython-coregistration)
@@ -99,7 +100,7 @@ from source_reconstruction import baseline_covariance, src_rec, fs_average
 names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
 precision = '0.5cm'
 
-for sub in subjects:
+for sub in ['072', '109']:#subjects:
     coreg_list = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', sub, '*'+precision+'*-trans.fif'))
     for c,coreg in enumerate(coreg_list):
         coreg_list[c] = set(op.split(coreg)[-1].split(precision)[-1].strip('-trans.fif').split('_')[1:])
@@ -113,11 +114,11 @@ for sub in subjects:
         
         for group in coreg_by_state:
             noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, rejection={'mag':3500e-15}, baseline=(-.4,-.25), names=names)
-            stc_surf,stc_vol = src_rec(task, sub, state, evoked=evoked, noise_cov=noise_cov, block_group=group, names=names)
+#            stc_surf,stc_vol = src_rec(task, sub, state, evoked=evoked, noise_cov=noise_cov, block_group=group, names=names)
 
-for name in names:
-    for state in states:
-        fs_average(task, state, name=name, subjects=subjects, do_morphing=False)
+#for name in names:
+#    for state in states:
+#        fs_average(task, state, name=name, subjects=subjects, do_morphing=False)
 
 
 #%%
