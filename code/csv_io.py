@@ -224,7 +224,7 @@ def state_count(state, pathBase = Analysis_path):
 # GET CHANNEL NAME
 # =============================================================================
 #def get_chan_name(subject: typing.Text, chan_type :"'ecg_chan', 'eogH_chan', 'eogV_chan', 'respi_chan', 'egg_chans', 'emgTrap_chan'", data=None) -> Union[typing.Text, List[typing.Text]]:
-def get_chan_name(subject, chan_type:"'ecg_chan', 'eogH_chan', 'eogV_chan', 'respi_chan', 'egg_chans', 'emgTrap_chan'", data=None):
+def get_chan_name(subject, chan_type:"'ecg_chan', 'eogH_chan', 'eogV_chan', 'respi_chan', 'egg_chans', 'emgTrap_chan', 'bad'", data=None):
     """
     Returns the name of the channel (or a list of channels) of the indicated type in the input dataset, as specified in ../meta/MEG_ANALYSIS_MASTERFILE.csv.
     INPUT
@@ -236,7 +236,11 @@ def get_chan_name(subject, chan_type:"'ecg_chan', 'eogH_chan', 'eogV_chan', 'res
     
     channel = sub_data.at[0,chan_type]
     if type(channel) is not str:
-        raise ValueError('Channel name not found for this type. Please edit masterfile.')
+        if chan_type == 'bad':
+            warnings.warn('No bad channel in masterfile.')
+            return []
+        else:
+            raise ValueError('Channel name not found for this type. Please edit masterfile.')
     
     chans = channel.split('|')
     
@@ -246,13 +250,17 @@ def get_chan_name(subject, chan_type:"'ecg_chan', 'eogH_chan', 'eogV_chan', 'res
             data_ch = fnmatch.filter(data.ch_names, '*'+ch+'*')
             
             if not data_ch:
-                raise ValueError("Channel not found in data.")
+                if chan_type == 'bad':
+                    warnings.warn("Channel {} not found in data. Check info['bads'], it may have already been rejected.".format(ch))
+                    continue
+                else:
+                    raise ValueError("Channel not found in data.")
             if len(data_ch) > 1:
                 warnings.warn("More than one channel found. Check that the masterfile is sufficiently accurate (e.g. 'EEG062' rather than '62').\nUsing channel {}.".format(data_ch[0]))
             
             data_chans.append(data_ch[0])
         
-        if len(data_chans) == 1:
+        if len(data_chans) == 1 and chan_type != 'bad':
             data_chans = data_chans[0]
         return data_chans
 

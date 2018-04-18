@@ -7,6 +7,7 @@ Created on Wed May 17 15:22:13 2017
 #IMPORT PACKAGES, DEFINE ENVIRONMENT VARIABLES, CREATE PATHES
 #==============================================================================
 from header import *
+from mne_custom import *
 #==============================================================================
 warnings.filterwarnings("ignore",category=DeprecationWarning)
 
@@ -33,7 +34,8 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 # # /!\ Custom attributes (e.g., ica.scores_) are not kept upon .save(), which calls _write_ica() whose dict ica_misc is not editable on call.
 # # => exploit the attribute labels_
 # # # /!\ Numpy arrays are not supported --> convert to type list with .tolist()
-def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, ECG_threshold=0.25, ECG_max=3, EOG_threshold=3, EOG_min=1, EOG_max=2):
+
+def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, ECG_threshold=0.25, ECG_max=3, EOG_threshold=3, EOG_min=1, EOG_max=2, custom_ecg=dict()):
     """
     Fit ICA on raw MEG data and return ICA object.
     If save, save ICA, save ECG and EOG artifact scores plots, and write log (default to True).
@@ -98,8 +100,12 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         ica = read_ica(ICA_file)
     
     # Detect ECG and EOG artifacts
-    ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw, threshold=ECG_threshold)[1].tolist()
-    pulse = mne.preprocessing.find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=get_chan_name(subject, 'ecg_chan', raw))[2]
+    if subject in custom_ecg.keys():
+        _, scores, pulse = custom_bads_ecg(raw, R_sign=custom_ecg[subject]['R_sign'], heart_rate=custom_ecg[subject]['heart_rate'], threshold=ECG_threshold)
+        ica.labels_['ecg_scores'] = scores.tolist()
+    else:
+        ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw, threshold=ECG_threshold)[1].tolist()
+        pulse = mne.preprocessing.find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=get_chan_name(subject, 'ecg_chan', raw))[2]
     
     ica.labels_['eog_scores'] = ica.find_bads_eog(raw, threshold=EOG_threshold)[1].tolist()
     
@@ -134,7 +140,7 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     return ica
 
 
-def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3):
+def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_ecg=dict()):
     """
     Run preprocessing and return preprocessed raw data.
     If check_ica, plot overlay and properties of ECG and EOG components (default to True).
@@ -186,7 +192,10 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     # Visual check
     if check_ica:
         # ECG components
-        check_ecg = create_ecg_epochs(raw, reject=ica_rejection)
+        if subject in custom_ecg.keys():
+            check_ecg, pulse = custom_ecg_epochs(raw, R_sign=custom_ecg[subject]['R_sign'], heart_rate=custom_ecg[subject]['heart_rate'], reject=ica_rejection)
+        else:
+            check_ecg = create_ecg_epochs(raw, reject=ica_rejection)
         ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'])
         if save_ica:
             plt.savefig(op.join(ICA_path, '{}_{}-{}_components-overlay_ecg.png'.format(state, block, n_components)), transparent=True, dpi=360)
@@ -379,7 +388,7 @@ def HPI_update(task, subject, block, data, precision='0.5cm', opt='start', rejec
     return data
 
 
-def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, rejection=None, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], save_t_timing=False, tmin=-.5, tmax=.8, baseline=None, synthetic_ecg=False, update_HPI=True, precision='0.5cm', opt='start', reject_head_mvt=True, check_ica=False, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3):
+def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, rejection=None, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], save_t_timing=False, tmin=-.5, tmax=.8, baseline=None, synthetic_ecg=False, update_HPI=True, precision='0.5cm', opt='start', reject_head_mvt=True, check_ica=False, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_ecg=dict()):
     """
     Epoch preprocessed raw data and average to evoked response, and return them.
     Output:
@@ -413,7 +422,7 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
         ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
         raw.pick_types(meg=True, ecg=False, eog=True, stim=True, exclude='bads')
     
-    T_events,T_times = t_detector(task, subject, state, block, raw.copy(), save=save_t_timing)
+    T_events, T_times, _, _ = t_detector(task, subject, state, block, raw.copy(), save=save_t_timing, custom_ecg=custom_ecg)
     delay = .3 #np.median(T_times)
     picks = mne.pick_types(raw.info, meg=True, ecg=True, eog=True, stim=True, exclude='bads')
     
@@ -426,7 +435,10 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
         
         # Epoch
         if name == 'R_ECG_excluded':
-            epochs[name] = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+            if subject in custom_ecg.keys():
+                epochs[name] = custom_ecg_epochs(raw, R_sign=custom_ecg[subject]['R_sign'], heart_rate=custom_ecg[subject]['heart_rate'], reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+            else:
+                epochs[name] = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
             if synthetic_ecg:
                 ecg_epo = create_ecg_epochs(ecg, tmin=tmin, tmax=tmax)
         
@@ -436,7 +448,10 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
                 ecg_epo = mne.Epochs(ecg, T_events, reject=rejection, tmin=tmin-delay, tmax=tmax-delay)
         
         elif name == 'R_ECG_included':
-            epochs[name] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+            if subject in custom_ecg.keys():
+                epochs[name] = custom_ecg_epochs(raw_ECG, R_sign=custom_ecg[subject]['R_sign'], heart_rate=custom_ecg[subject]['heart_rate'], reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+            else:
+                epochs[name] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
             if synthetic_ecg:
                 ecg_epo = create_ecg_epochs(ecg, tmin=tmin, tmax=tmax)
         
@@ -476,7 +491,7 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
     return epochs
 
 
-def t_detector(task, subject, state, block, raw, event_id=333, l_freq=5, h_freq=35, T_window=[.1,.5], save=True):
+def t_detector(task, subject, state, block, raw, R_sign=0, event_id=333, l_freq=5, h_freq=35, T_window=[.15,.4], save=True, custom_ecg=dict()):
     """
     From raw data containing at least the ECG channel, returns events corresponding to T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
     """
@@ -502,14 +517,19 @@ def t_detector(task, subject, state, block, raw, event_id=333, l_freq=5, h_freq=
         raw.filter(l_freq=l_freq, h_freq=h_freq, filter_length='10s', l_trans_bandwidth=.5, h_trans_bandwidth=.5, phase='zero-double', fir_window='hann', fir_design='firwin2')
     
     # Find R peak events
-    R_epochs = create_ecg_epochs(raw)
+    if subject in custom_ecg.keys():
+        R_sign = custom_ecg[subject]['R_sign']
+        R_epochs, pulse = custom_ecg_epochs(raw, R_sign=R_sign, heart_rate=custom_ecg[subject]['heart_rate'])
+    else:
+        R_epochs = create_ecg_epochs(raw)
     
     # Find T peak timing
     R_epochs.pick_channels([ECG_channel])
     data = R_epochs.get_data()[:, 0, :] #The indices delete the axis=1 that is not used.
     
-    R_time_i = R_epochs.time_as_index([0])
-    R_sign = np.median(np.sign(data[:, R_time_i]))
+    R_time_i = R_epochs.time_as_index(0)
+    if not R_sign:
+        R_sign = np.median(np.sign(data[:, R_time_i]))
     T_window_i = R_epochs.time_as_index(T_window)
     
     T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
@@ -523,13 +543,13 @@ def t_detector(task, subject, state, block, raw, event_id=333, l_freq=5, h_freq=
     
     # Return T peak events
     T_events = R_epochs.copy().events
-    T_events[:,0] += T_times_i
+    T_events[:,0] += T_times_i - R_time_i
     T_events[:,2] = event_id
     
-    return T_events,T_times
+    return T_events,T_times,R_epochs,raw
 
 
-def check_ecg_epoch(task, subject, state, block, raw=None, epochs=None, name='R_ECG_included', synthetic=True, save=False):
+def check_ecg_epoch(task, subject, state, block, raw=None, epochs=None, events=np.array([]), name='R_ECG_included', synthetic=True, save=False):
     """
     Plot ECG along with events used for epoching. If synthetic, create and plot a synthetic ECG channel as well.
     """
@@ -562,10 +582,11 @@ def check_ecg_epoch(task, subject, state, block, raw=None, epochs=None, name='R_
         
         ecg.add_channels([ecg_raw])
     
-    if not epochs:
-        epochs = mne.read_epochs(op.join(epochs_path, '{}-{}_{}-epo.fif'.format(name, state, block)), preload=False)
+    if not events.any():
+        if not epochs and not events:
+            epochs = mne.read_epochs(op.join(epochs_path, '{}-{}_{}-epo.fif'.format(name, state, block)), preload=False)
+        events = epochs.events
     
-    events = epochs.events
     ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto')
     if save:
         plt.savefig(op.join(epochs_path, '{}_{}-ECG.pdf'.format(state, block)), transparent=True)

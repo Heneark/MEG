@@ -11,6 +11,23 @@ from tqdm import tqdm
 #==============================================================================
 warnings.filterwarnings("ignore",category=DeprecationWarning)
 
+# MANUAL CHECK
+#==============================================================================
+#task='SMEG'; names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded']
+#subject='071'; evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
+#state='RS'; block='01'; name=names[0]
+#evoked = mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block)))[0]
+#bad_chan = get_chan_name(subject, 'bad', data=evoked)
+#evoked.drop_channels(bad_chan).plot_joint()
+#
+## Save ERP
+#for state in ['RS','FA','OM']:
+#    for block in get_blocks(subject, task=task, state=state):
+#        mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block)))[0].drop_channels(bad_chan).plot_joint(title = 'Subject {} - {} {}\n{}\n{} channels rejected'.format(subject, state, block, name, len(bad_chan)))
+#        plt.savefig(op.join(evoked_path, '{}-{}_{}-ERP_rejected.pdf'.format(name, state, block)), transparent=True)
+#        plt.close()
+#==============================================================================
+
 
 def baseline_covariance(task, subject, state, block_group, rejection={'mag':2500e-15}, baseline=(-.4,-.25), t_delay=.3, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded']):
     """
@@ -152,6 +169,9 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 evoked[name].extend(mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))))
         evoked[name] = mne.combine_evoked(evoked[name], 'nave')
         
+        # Bad channels will be rejected when computing the inverse operator and SourceEstimate
+        bad_chan = list(set(evoked[name].info['bads']) | set(get_chan_name(subject, 'bad', evoked[name])))
+        
         # Save files
         fwd_surf_file = op.join(stc_path, '{}_{}-{}-surface_{}-fwd.fif'.format(state, '_'.join(block_group), name, surface))
         fwd_vol_file = op.join(stc_path, '{}_{}-{}-volume_{}-fwd.fif'.format(state, '_'.join(block_group), name, volume))
@@ -178,7 +198,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 # Load forward solution
                 if not fwd_surf:
                     fwd_surf = mne.read_forward_solution(fwd_surf_file)
-                inv_surf = make_inverse_operator(evoked[name].info, fwd_surf, noise_cov)
+                inv_surf = make_inverse_operator(mne.pick_channels_evoked(evoked[name], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan))
                 write_inverse_operator(inv_surf_file, inv_surf)
             
             # Compute SourceEstimate
@@ -186,7 +206,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 # Load inverse solution
                 if not inv_surf:
                     inv_surf = read_inverse_operator(inv_surf_file)
-                stc_surf[name] = apply_inverse(evoked[name], inv_surf, method=method)
+                stc_surf[name] = apply_inverse(mne.pick_channels_evoked(evoked[name], exclude=bad_chan), inv_surf, method=method)
                 stc_surf[name].save(stc_surf_file)
             
             if fsaverage:
@@ -213,7 +233,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 # Load forward solution
                 if not fwd_vol:
                     fwd_vol = mne.read_forward_solution(fwd_vol_file)
-                inv_vol = make_inverse_operator(evoked[name].info, fwd_vol, noise_cov, loose=1)
+                inv_vol = make_inverse_operator(mne.pick_channels_evoked(evoked[name], exclude=bad_chan).info, mne.pick_channels_forward(fwd_vol, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan), loose=1)
                 write_inverse_operator(inv_vol_file, inv_vol)
             
             # Compute SourceEstimate
@@ -221,7 +241,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 # Load inverse solution
                 if not inv_vol:
                     inv_vol = read_inverse_operator(inv_vol_file)
-                stc_vol[name] = apply_inverse(evoked[name], inv_vol, method=method)
+                stc_vol[name] = apply_inverse(mne.pick_channels_evoked(evoked[name], exclude=bad_chan), inv_vol, method=method)
                 stc_vol[name].save(stc_vol_file)
     
     return stc_surf,stc_vol
