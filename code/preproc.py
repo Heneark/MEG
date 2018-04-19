@@ -8,6 +8,7 @@ Created on Wed May 17 15:22:13 2017
 #==============================================================================
 from header import *
 from mne_custom import *
+from scipy.signal import detrend, hilbert
 #==============================================================================
 warnings.filterwarnings("ignore",category=DeprecationWarning)
 
@@ -27,9 +28,12 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 # # ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
 
 # epo = create_ecg_epochs(raw_ECG, reject={'mag':3000e-15}, tmin=-.5, tmax=.8, baseline=None, picks=mne.pick_types(raw_ECG.info, meg=True, ecg=True, eog=True, stim=True, exclude='bads'))
-# epochs,evoked = epoch(task, subject, state, block, save=False, rejection={'mag':2.5e-12}, tmin=-.5, tmax=.8, baseline=(-.4,-.3), overwrite_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3.5)
+# epochs = epoch(task, subject, state, block, save=False, rejection=None, tmin=-.5, tmax=.8, baseline=None, overwrite_ica=False)
 #==============================================================================
 
+
+def Pre(x):
+    return detrend((x-np.mean(x))/np.std(x))
 
 # # /!\ Custom attributes (e.g., ica.scores_) are not kept upon .save(), which calls _write_ica() whose dict ica_misc is not editable on call.
 # # => exploit the attribute labels_
@@ -101,7 +105,10 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     
     # Detect ECG and EOG artifacts
     if subject in custom_ecg.keys():
-        _, scores, pulse = custom_bads_ecg(raw, R_sign=custom_ecg[subject]['R_sign'], heart_rate=custom_ecg[subject]['heart_rate'], threshold=ECG_threshold)
+        custom_args = custom_ecg[subject].copy()
+        if 'tstart' in custom_args.keys():
+            custom_args['tstart'] = custom_args['tstart'][state+block]
+        _, scores, pulse = custom_bads_ecg(raw, custom_args, threshold=ECG_threshold)
         ica.labels_['ecg_scores'] = scores.tolist()
     else:
         ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw, threshold=ECG_threshold)[1].tolist()
@@ -193,7 +200,10 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     if check_ica:
         # ECG components
         if subject in custom_ecg.keys():
-            check_ecg, pulse = custom_ecg_epochs(raw, R_sign=custom_ecg[subject]['R_sign'], heart_rate=custom_ecg[subject]['heart_rate'], reject=ica_rejection)
+            custom_args = custom_ecg[subject].copy()
+            if 'tstart' in custom_args.keys():
+                custom_args['tstart'] = custom_args['tstart'][state+block]
+            check_ecg, pulse = custom_ecg_epochs(raw, custom_args, reject=ica_rejection)
         else:
             check_ecg = create_ecg_epochs(raw, reject=ica_rejection)
         ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'])
@@ -388,7 +398,7 @@ def HPI_update(task, subject, block, data, precision='0.5cm', opt='start', rejec
     return data
 
 
-def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, rejection=None, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], save_t_timing=False, tmin=-.5, tmax=.8, baseline=None, synthetic_ecg=False, update_HPI=True, precision='0.5cm', opt='start', reject_head_mvt=True, check_ica=False, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_ecg=dict()):
+def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, rejection=None, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], save_t_timing=False, sliding=False, tmin=-.5, tmax=.8, baseline=None, synthetic_ecg=False, update_HPI=True, precision='0.5cm', opt='start', reject_head_mvt=True, check_ica=False, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_ecg=dict()):
     """
     Epoch preprocessed raw data and average to evoked response, and return them.
     Output:
@@ -416,13 +426,17 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
     
     # Load data
     if not raw or not raw_ECG:
-        raw, raw_ECG = process(task, subject, state, block, check_ica=check_ica, overwrite_ica=overwrite_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, notch=notch, high_pass=high_pass, low_pass=low_pass, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold)
+        raw, raw_ECG = process(task, subject, state, block, check_ica=check_ica, overwrite_ica=overwrite_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, notch=notch, high_pass=high_pass, low_pass=low_pass, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, custom_ecg=custom_ecg)
     
     if synthetic_ecg:
         ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
         raw.pick_types(meg=True, ecg=False, eog=True, stim=True, exclude='bads')
     
-    T_events, T_times, _, _ = t_detector(task, subject, state, block, raw.copy(), save=save_t_timing, custom_ecg=custom_ecg)
+    if sliding:
+        T_events, T_times, R_epochs, ekg = t_detector_sliding(task, subject, state, block, raw.copy(), save=save_t_timing, custom_ecg=custom_ecg)
+    else:
+        T_events, T_times, R_epochs, ekg = t_detector(task, subject, state, block, raw.copy(), save=save_t_timing, custom_ecg=custom_ecg)
+    check_ecg_epoch(task, subject, state, block, raw_ECG.copy(), events=np.concatenate([R_epochs.events, T_events]), save=save)
     delay = .3 #np.median(T_times)
     picks = mne.pick_types(raw.info, meg=True, ecg=True, eog=True, stim=True, exclude='bads')
     
@@ -436,7 +450,10 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
         # Epoch
         if name == 'R_ECG_excluded':
             if subject in custom_ecg.keys():
-                epochs[name] = custom_ecg_epochs(raw, R_sign=custom_ecg[subject]['R_sign'], heart_rate=custom_ecg[subject]['heart_rate'], reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+                custom_args = custom_ecg[subject].copy()
+                if 'tstart' in custom_args.keys():
+                    custom_args['tstart'] = custom_args['tstart'][state+block]
+                epochs[name], pulse = custom_ecg_epochs(raw, custom_args, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
             else:
                 epochs[name] = create_ecg_epochs(raw, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
             if synthetic_ecg:
@@ -449,7 +466,10 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
         
         elif name == 'R_ECG_included':
             if subject in custom_ecg.keys():
-                epochs[name] = custom_ecg_epochs(raw_ECG, R_sign=custom_ecg[subject]['R_sign'], heart_rate=custom_ecg[subject]['heart_rate'], reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
+                custom_args = custom_ecg[subject].copy()
+                if 'tstart' in custom_args.keys():
+                    custom_args['tstart'] = custom_args['tstart'][state+block]
+                epochs[name], pulse = custom_ecg_epochs(raw_ECG, custom_args, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
             else:
                 epochs[name] = create_ecg_epochs(raw_ECG, reject=rejection, tmin=tmin, tmax=tmax, baseline=baseline, picks=picks)
             if synthetic_ecg:
@@ -479,9 +499,6 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
         
         if update_HPI:
             epochs[name] = HPI_update(task, subject, block, data=epochs[name].copy(), precision=precision, opt=opt, reject_head_mvt=reject_head_mvt)
-        
-        if not n:
-            check_ecg_epoch(task, subject, state, block, raw, epochs[name], save=save)
         
         # Save epochs
         if save:
@@ -518,8 +535,11 @@ def t_detector(task, subject, state, block, raw, R_sign=0, event_id=333, l_freq=
     
     # Find R peak events
     if subject in custom_ecg.keys():
-        R_sign = custom_ecg[subject]['R_sign']
-        R_epochs, pulse = custom_ecg_epochs(raw, R_sign=R_sign, heart_rate=custom_ecg[subject]['heart_rate'])
+        custom_args = custom_ecg[subject].copy()
+        if 'tstart' in custom_args.keys():
+            custom_args['tstart'] = custom_args['tstart'][state+block]
+        R_sign = custom_args['T_sign'] if 'T_sign' in custom_args.keys() else custom_args['R_sign']
+        R_epochs, pulse = custom_ecg_epochs(raw, custom_args)
     else:
         R_epochs = create_ecg_epochs(raw)
     
@@ -529,9 +549,95 @@ def t_detector(task, subject, state, block, raw, R_sign=0, event_id=333, l_freq=
     
     R_time_i = R_epochs.time_as_index(0)
     if not R_sign:
-        R_sign = np.median(np.sign(data[:, R_time_i]))
+        R_sign = np.median(np.sign(Pre(data)[:, R_time_i]))
+    print('R_sign =', R_sign)
     T_window_i = R_epochs.time_as_index(T_window)
     
+    T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
+    T_times = R_epochs.times[T_times_i]
+    
+    # Save timing of R peaks and delay until T peak (in sec)
+    if save:
+        for i in range(len(T_times)):
+            with open(timing_file, 'a') as fid:
+                fid.write("{}\t{}\t{}\t{}\t{}\n".format(subject, state, block, np.round(raw.times[R_epochs.events[i,0]],3), np.round(T_times[i], 3)))
+    
+    # Return T peak events
+    T_events = R_epochs.copy().events
+    T_events[:,0] += T_times_i - R_time_i
+    T_events[:,2] = event_id
+    
+    return T_events,T_times,R_epochs,raw
+
+
+def t_detector_sliding(task, subject, state, block, raw, R_sign=0, event_id=333, l_freq=5, h_freq=35, T_window=[.2,.35], slide=[.1,.5], step=.05, save=False, custom_ecg=dict()):
+    """
+    From raw data containing at least the ECG channel, returns events corresponding to T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
+    """
+    # Save T peak timing
+    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}-sliding.tsv'.format(l_freq, h_freq))
+    if save and not op.isfile(timing_file):
+        with open(timing_file, 'w') as fid:
+            fid.write('subject\tstate\tblock\tR_peak\tT_delay\n')
+    
+    # Pick ECG
+    ECG_channel = get_chan_name(subject, 'ecg_chan', raw)
+    raw.pick_channels([ECG_channel])
+    
+    # Set ECG_channel as EEG data and its copy 'ECG' as ECG
+    ecg = raw.copy()
+    raw.set_channel_types({ECG_channel:'eeg'})
+    ecg.rename_channels({ECG_channel:'ECG'})
+    ecg.set_channel_types({'ECG':'ecg'})
+    raw.add_channels([ecg])
+    
+    # Filter EEG as in qrs_detector
+    if l_freq and h_freq:
+        raw.filter(l_freq=l_freq, h_freq=h_freq, filter_length='10s', l_trans_bandwidth=.5, h_trans_bandwidth=.5, phase='zero-double', fir_window='hann', fir_design='firwin2')
+    
+    # Find R peak events
+    if subject in custom_ecg.keys():
+        custom_args = custom_ecg[subject].copy()
+        if 'tstart' in custom_args.keys():
+            custom_args['tstart'] = custom_args['tstart'][state+block]
+        R_sign = custom_args['T_sign'] if 'T_sign' in custom_args.keys() else custom_args['R_sign']
+        R_epochs, pulse = custom_ecg_epochs(raw, custom_args)
+    else:
+        R_epochs = create_ecg_epochs(raw)
+    
+    # Find T peak timing
+    R_epochs.pick_channels([ECG_channel])
+    data = R_epochs.get_data()[:, 0, :] #The indices delete the axis=1 that is not used.
+    
+    R_time_i = R_epochs.time_as_index(0)
+    if not R_sign:
+        R_sign = np.median(np.sign(Pre(data)[:, R_time_i]))
+    print('R_sign =', R_sign)
+    
+    win_size = np.diff(T_window)
+    peaks = []
+    windows = []
+    while slide[0] < T_window[0]:
+        T_window_i = R_epochs.time_as_index([slide[0], T_window[1]])
+        
+        T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
+        peaks.append(T_times_i.mean())
+        windows.append([slide[0], T_window[1]])
+        slide[0] += step
+    
+    while T_window[1] <= slide[1]:
+        T_window_i = R_epochs.time_as_index([T_window[0], T_window[1]])
+        
+        T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
+        peaks.append(np.median(T_times_i))
+        windows.append([T_window[0], T_window[1]])
+        T_window[1] += step
+    
+    opti_peak = np.median(peaks)
+    print(peaks, opti_peak)
+    opti_win = windows[np.abs(np.subtract(peaks, opti_peak)).argmin()]
+    
+    T_window_i = R_epochs.time_as_index(opti_win)
     T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
     T_times = R_epochs.times[T_times_i]
     

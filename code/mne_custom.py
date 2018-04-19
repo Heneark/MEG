@@ -17,16 +17,16 @@ from mne.preprocessing.ctps_ import ctps
 from mne.preprocessing.ecg import _get_ecg_channel_index, _make_ecg
 from mne.utils import logger, sum_squared, warn
 import numpy as np
+from scipy.signal import detrend, hilbert
 
-
-def qrs_custom(sfreq, ecg, R_sign=0, ideal_rate=0, var=.5, thresh_value='auto', levels=2.5, n_thresh=3,
-                 l_freq=8, h_freq=16, tstart=0, filter_length='10s'):
+def qrs_custom(sfreq, ecg, custom_args, var=1/3, thresh_value='auto', levels=2.5, n_thresh=3,
+                 l_freq=8, h_freq=16, tstart=0, filter_length='10s', force=False):
     """
     Copy-paste from mne.preprocessing.ecg, with a few modifications:
         R_sign: instead of taking abs() of the ecg, provide the expected sign of the R peak to turn it upwards.
         ideal_rate: instead of taking a median heart rate, provide the expected pulse.
         var: provided ideal_rate, reduce the size of the search window and increase the jumps between peaks according to this variability parameter
-            (var=1 with 80 bpm pulse is equivalent to MNE's default)
+            (var=2/3 with 80 bpm pulse is equivalent to MNE's default).
     
     
     Detect QRS component in ECG channels.
@@ -60,12 +60,33 @@ def qrs_custom(sfreq, ecg, R_sign=0, ideal_rate=0, var=.5, thresh_value='auto', 
     events : array
         Indices of ECG peaks
     """
+    if 'R_sign' in custom_args.keys(): R_sign = custom_args['R_sign']
+    if 'heart_rate' in custom_args.keys(): ideal_rate = custom_args['heart_rate']
+    if 'tstart' in custom_args.keys(): tstart = custom_args['tstart']
+    if 'force' in custom_args.keys(): force = custom_args['force']
+    
     if ideal_rate:
         period = sfreq * 60 / ideal_rate
-        win_size = int(round(period * 2/3 * var))
+        win_size = int(round(period * var))
+        print('Window size: {}\nJump size: {}'.format(win_size/sfreq, int(round(period - win_size / 2))/sfreq))
     else:
         win_size = int(round((60.0 * sfreq) / 120.0))
-
+    
+    if force:
+        print('MOTHERFUCKING BRUTE FORCE')
+        data = abs(hilbert(ecg))
+        data = filter_data(ecg, sfreq, 5, None, None, filter_length,
+                           0.5, 0.5, phase='zero-double', fir_window='hann',
+                           fir_design='firwin2')
+        time = []
+        ii = int(round(tstart *sfreq))
+        while ii <= data.size - win_size:
+            window = data[ii:ii + win_size]
+            max_time = np.argmax(window)
+            time.append(ii + max_time)
+            ii += int(round(max_time + period - win_size / 2))
+        return time
+    
     filtecg = filter_data(ecg, sfreq, l_freq, h_freq, None, filter_length,
                           0.5, 0.5, phase='zero-double', fir_window='hann',
                           fir_design='firwin2')
@@ -112,7 +133,7 @@ def qrs_custom(sfreq, ecg, R_sign=0, ideal_rate=0, var=.5, thresh_value='auto', 
                                      1).astype(int)))
                 numcross.append(nx)
                 rms.append(np.sqrt(sum_squared(window) / window.size))
-                ii += int(round(period - win_size / 2)) if ideal_rate else win_size
+                ii += int(round(max_time + period - win_size / 2)) if ideal_rate else win_size
             else:
                 ii += 1
 
@@ -146,7 +167,7 @@ def qrs_custom(sfreq, ecg, R_sign=0, ideal_rate=0, var=.5, thresh_value='auto', 
     return clean_events
 
 
-def custom_ecg_events(raw, R_sign=0, heart_rate=0, event_id=999, ch_name=None, tstart=0.0,
+def custom_ecg_events(raw, custom_args, event_id=999, ch_name=None, tstart=0.0,
                     l_freq=8, h_freq=16, qrs_threshold='auto',
                     filter_length='10s', return_ecg=False, verbose=None):
     """
@@ -205,8 +226,7 @@ def custom_ecg_events(raw, R_sign=0, heart_rate=0, event_id=999, ch_name=None, t
         ecg, times = _make_ecg(raw, None, None, verbose=verbose)
 
     # detecting QRS and generating event file
-    ecg_events = qrs_custom(raw.info['sfreq'], ecg.ravel(), R_sign=R_sign,
-                            ideal_rate=heart_rate, tstart=tstart,
+    ecg_events = qrs_custom(raw.info['sfreq'], ecg.ravel(), custom_args, tstart=tstart,
                             thresh_value=qrs_threshold, l_freq=l_freq,
                             h_freq=h_freq, filter_length=filter_length)
 
@@ -224,7 +244,7 @@ def custom_ecg_events(raw, R_sign=0, heart_rate=0, event_id=999, ch_name=None, t
     return out
 
 
-def custom_ecg_epochs(raw, R_sign=0, heart_rate=0, ch_name=None, event_id=999, picks=None, tmin=-0.5,
+def custom_ecg_epochs(raw, custom_args, ch_name=None, event_id=999, picks=None, tmin=-0.5,
                       tmax=0.5, l_freq=8, h_freq=16, reject=None, flat=None,
                       baseline=None, preload=True, keep_ecg=False,
                       reject_by_annotation=True, verbose=None):
@@ -307,7 +327,7 @@ def custom_ecg_epochs(raw, R_sign=0, heart_rate=0, ch_name=None, event_id=999, p
     has_ecg = 'ecg' in raw or ch_name is not None
 
     events, _, pulse, ecg = custom_ecg_events(
-        raw, R_sign=R_sign, heart_rate=heart_rate,
+        raw, custom_args,
         ch_name=ch_name, event_id=event_id, l_freq=l_freq, h_freq=h_freq,
         return_ecg=True, verbose=verbose)
 
@@ -344,7 +364,7 @@ def custom_ecg_epochs(raw, R_sign=0, heart_rate=0, ch_name=None, event_id=999, p
     return ecg_epochs, pulse
 
 
-def custom_bads_ecg(self, inst, R_sign=0, heart_rate=0, ch_name=None, threshold=None, start=None,
+def custom_bads_ecg(self, inst, custom_args, ch_name=None, threshold=None, start=None,
                   stop=None, l_freq=8, h_freq=16, method='ctps',
                   reject_by_annotation=True, verbose=None):
     """
@@ -437,7 +457,7 @@ def custom_bads_ecg(self, inst, R_sign=0, heart_rate=0, ch_name=None, threshold=
         if threshold is None:
             threshold = 0.25
         if isinstance(inst, BaseRaw):
-            ecg_epochs, pulse = custom_ecg_epochs(inst, R_sign=R_sign, heart_rate=heart_rate,
+            ecg_epochs, pulse = custom_ecg_epochs(inst, custom_args,
                                                   ch_name=ch_name, keep_ecg=False,
                                                   reject_by_annotation=reject_by_annotation)
             sources = self.get_sources(ecg_epochs).get_data()

@@ -20,10 +20,10 @@ task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-reject = ['004', '010', '072', '109']#004, 010: no ECG; 072, 109: no MRI
-for sub in reject:
-    if sub in subjects:
-        subjects.remove(sub)
+#reject = ['004', '010', '072', '109']#004, 010: no ECG; 072, 109: no MRI
+#for sub in reject:
+#    if sub in subjects:
+#        subjects.remove(sub)
 
 # # Last subject preprocessed: 109, verbose='WARNING'
 # # Future subjects list:
@@ -76,13 +76,23 @@ from anat import BEM, src_space
 #%% PREPROCESSING
 from preproc import process, epoch, empty_room_covariance, check_ecg_epoch
 
-custom_ecg = {'004':{'R_sign':1, 'heart_rate':78}, '010':{'R_sign':-1, 'heart_rate':77}, '028':{'R_sign':-1, 'heart_rate':55}, '069':{'R_sign':-1, 'heart_rate':94}}
-for sub in sorted(list(custom_ecg.keys())):#subjects:
+custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM02': .15, 'FA04': .7}, 'force':True},
+              '010': {'R_sign': -1, 'heart_rate': 77, 'T_sign': 1},
+              '012': {'R_sign': -1, 'heart_rate': 77, 'T_sign': 1},
+              '028': {'R_sign': -1, 'heart_rate': 55},
+              '069': {'R_sign': -1, 'heart_rate': 94}}
+
+for sub in ['004', '010', '028', '069']:#subjects:
 #    empty_room_covariance(task, sub)
     for state in states:
         for blk in get_blocks(sub, task=task, state=state):
 #            raw,raw_ECG = process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
-            epochs = epoch(task, sub, state, blk, high_pass=.5, low_pass=None, ica_rejection={'mag':7e-12}, ECG_threshold=0.2, EOG_threshold=5, custom_ecg=custom_ecg, save_t_timing=True, check_ica=True, overwrite_ica=True)
+            epochs = epoch(task, sub, state, blk, high_pass=.5, low_pass=None, ica_rejection={'mag':7e-12}, ECG_threshold=0.2, EOG_threshold=5, custom_ecg=custom_ecg, save_t_timing=True, sliding=True, check_ica=True, overwrite_ica=True)
+
+for sub in subjects:
+    for state in states:
+        for blk in get_blocks(sub, task=task, state=state):
+            epochs = epoch(task, sub, state, blk, high_pass=.5, low_pass=None, ica_rejection={'mag':7e-12}, ECG_threshold=0.2, EOG_threshold=5, custom_ecg=custom_ecg, save_t_timing=True, sliding=True, names=['T_ECG_included','T_ECG_excluded'])
 
 
 #%% COREGISTRATION (https://www.slideshare.net/mne-python/mnepython-coregistration)
