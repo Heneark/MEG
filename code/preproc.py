@@ -508,12 +508,12 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
     return epochs
 
 
-def t_detector(task, subject, state, block, raw, R_sign=0, event_id=333, l_freq=5, h_freq=35, T_window=[.15,.4], save=True, custom_ecg=dict()):
+def t_detector(task, subject, state, block, raw, R_sign=0, event_id=333, l_freq=5, h_freq=35, T_window=[.2,.35], save=True, custom_ecg=dict()):
     """
     From raw data containing at least the ECG channel, returns events corresponding to T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
     """
     # Save T peak timing
-    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}.tsv'.format(l_freq, h_freq))
+    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}-{}.tsv'.format(l_freq, h_freq, T_window))
     if save and not op.isfile(timing_file):
         with open(timing_file, 'w') as fid:
             fid.write('subject\tstate\tblock\tR_peak\tT_delay\n')
@@ -575,7 +575,7 @@ def t_detector_sliding(task, subject, state, block, raw, R_sign=0, event_id=333,
     From raw data containing at least the ECG channel, returns events corresponding to T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
     """
     # Save T peak timing
-    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}-sliding.tsv'.format(l_freq, h_freq))
+    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}-{}_sliding.tsv'.format(l_freq, h_freq, T_window))
     if save and not op.isfile(timing_file):
         with open(timing_file, 'w') as fid:
             fid.write('subject\tstate\tblock\tR_peak\tT_delay\n')
@@ -619,25 +619,28 @@ def t_detector_sliding(task, subject, state, block, raw, R_sign=0, event_id=333,
     windows = []
     while slide[0] < T_window[0]:
         T_window_i = R_epochs.time_as_index([slide[0], T_window[1]])
-        
+        print(T_window_i)
         T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
+        print(T_times_i.size)
         peaks.append(T_times_i.mean())
-        windows.append([slide[0], T_window[1]])
+#        peaks.append(np.median(T_times_i))
+        windows.append(T_window_i)
         slide[0] += step
     
     while T_window[1] <= slide[1]:
         T_window_i = R_epochs.time_as_index([T_window[0], T_window[1]])
-        
+        print(T_window_i)
         T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
-        peaks.append(np.median(T_times_i))
-        windows.append([T_window[0], T_window[1]])
+        print(T_times_i.size)
+        peaks.append(T_times_i.mean())
+#        peaks.append(np.median(T_times_i))
+        windows.append(T_window_i)
         T_window[1] += step
     
     opti_peak = np.median(peaks)
     print(peaks, opti_peak)
-    opti_win = windows[np.abs(np.subtract(peaks, opti_peak)).argmin()]
     
-    T_window_i = R_epochs.time_as_index(opti_win)
+    T_window_i = windows[np.abs(np.subtract(peaks, opti_peak)).argmin()]
     T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
     T_times = R_epochs.times[T_times_i]
     
