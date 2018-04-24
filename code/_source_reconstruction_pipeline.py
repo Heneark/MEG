@@ -113,7 +113,7 @@ custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM0
 #%% SOURCE RECONSTRUCTION
 from source_reconstruction import baseline_covariance, src_rec, fs_average
 
-names = ['T_ECG_included', 'T_ECG_excluded']#'R_ECG_included', 'R_ECG_excluded', 
+names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']#
 precision = '0.5cm'
 
 for sub in subjects:#['004', '010', '054', '071']:#
@@ -128,13 +128,13 @@ for sub in subjects:#['004', '010', '054', '071']:#
             if blk_list & coreg:
                 coreg_by_state.append(sorted(list(blk_list & coreg)))
         
-        for group in coreg_by_state:
-            if sub in ['004', '010']: noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, rejection={'mag':3500e-15}, baseline=(-.4,-.25), names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'])
-            stc_surf,stc_vol = src_rec(task, sub, state, evoked=None, noise_cov=None, block_group=group, names=names)#, compute_fwd=False)
-
-for name in names:
-    for state in states:
-        fs_average(task, state, name=name, subjects=subjects, do_morphing=False)
+#        for group in coreg_by_state:
+#            noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, rejection={'mag':3500e-15}, baseline=(-.4,-.25), names=names)
+#            stc_surf,stc_vol = src_rec(task, sub, state, evoked=None, noise_cov=None, block_group=group, names=names)#, compute_fwd=False)
+#
+#for name in names:
+#    for state in states:
+#        fs_average(task, state, name=name, subjects=subjects, do_morphing=False, overwrite=False)
 
 
 #%%

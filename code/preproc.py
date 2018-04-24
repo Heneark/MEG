@@ -508,6 +508,45 @@ def epoch(task, subject, state, block, raw=None, raw_ECG=None, save=True, reject
     return epochs
 
 
+def add_T_events(task, subject, state, block, name='R_ECG_included', epochs=None, T_id=333, T_window=[.1,.5], var=.05):
+    """
+    
+    """
+    # Define pathes
+    epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
+    epochs_file = op.join(epochs_path, '{}-{}_{}-epo.fif'.format(name, state, block))
+    
+    if not epochs:
+        epochs = mne.read_epochs(epochs_file)
+    
+    ecg = epochs.copy().pick_types(ref_meg=False, meg=False, ecg=True)
+    ecg.set_channel_types({ch:'eeg' for ch in ecg.ch_names})
+    erp = ecg.average()
+    
+    R_sign = np.sign(np.subtract(erp.data.ravel(), erp.data.ravel().mean())[erp.time_as_index(0)][0])
+    if R_sign < 0:
+        mode = 'neg'
+    elif R_sign > 0:
+        mode = 'pos'
+    else:
+        raise ValueError("Sign of the R_peak could not be determined")
+    
+    ecg_channel, T_peak = erp.get_peak(tmin=T_window[0], tmax=T_window[1], mode=mode)
+    
+    T_window_i = ecg.time_as_index([T_peak - var, T_peak + var])
+    
+    data = ecg.get_data()[:, 0, :]
+    T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
+    
+    R_id = list(ecg.event_id.values())[0]
+    R_events = ecg.copy().events
+    T_events = ecg.copy().events
+    T_events[:,0] = T_times_i
+    T_events[:,2] = T_id
+    
+    epochs.events = np.concatenate([R_events, T_events])
+
+
 def t_detector(task, subject, state, block, raw, R_sign=0, event_id=333, l_freq=5, h_freq=35, T_window=[.2,.35], save=True, custom_ecg=dict()):
     """
     From raw data containing at least the ECG channel, returns events corresponding to T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
