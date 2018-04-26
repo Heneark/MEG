@@ -109,7 +109,7 @@ def baseline_covariance(task, subject, state, block_group, rejection={'mag':2500
     return noise_cov,evoked
 
 
-def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, fsaverage=True, baseline_cov=True, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], mindist=5, method="dSPM"):
+def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, tmin=None, tmax=None, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, fsaverage=True, baseline_cov=True, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], mindist=5, method="dSPM"):
     """
     If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
     If compute_inv=True, compute and save inverse solution.
@@ -170,6 +170,7 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, surf
                 evoked[name].extend(mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))))
         evoked[name] = mne.combine_evoked(evoked[name], 'nave')
         
+        evoked[name].crop(tmin, tmax)
         # Bad channels will be rejected when computing the inverse operator and SourceEstimate
         bad_chan = list(set(evoked[name].info['bads']) | set(get_chan_name(subject, 'bad', evoked[name])))
         
@@ -280,8 +281,8 @@ def fs_average(task, state, name, subjects=None, do_morphing=True, overwrite=Fal
         # Define files
         stc_file = op.join(stc_path, sub, '{}_*-{}-{}-surface_{}{}-lh.stc'.format(state, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, ('-fsaverage' if not do_morphing else '')))
         fs_file = op.join(stc_path, 'fsaverage', sub, '{}-{}-{}-surface_{}-{}_to_fs'.format(state, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, sub))
-        if not op.isdir(op.split(fs_file)[0]):
-            os.makedirs(op.split(fs_file)[0])
+        if not op.isdir(op.dirname(fs_file)):
+            os.makedirs(op.dirname(fs_file))
         
         # If the combined SourceEstimate already exists, just load it (if you do not wish to overwrite it)
         if op.isfile(fs_file) and not overwrite:
@@ -293,7 +294,7 @@ def fs_average(task, state, name, subjects=None, do_morphing=True, overwrite=Fal
         nave_all = []
         
         for file in files:
-            if len(files) > 1: print(colored(op.split(file[:-7])[-1], 'yellow'))
+            if len(files) > 1: print(colored(op.basename(file[:-7]), 'yellow'))
             stc = mne.read_source_estimate(file[:-7])
             
             # Morph to fsaverage
