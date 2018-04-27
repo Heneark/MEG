@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 #task='SMEG'; names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded']
 #subject='054'; evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
 #state='RS'; block='01'; name=names[0]
-#evoked = mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block)))[0]
+#evoked = mne.read_evokeds(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)))[0]
 #bad_chan = get_chan_name(subject, 'bad', data=evoked)
 #evoked.drop_channels(bad_chan).plot_joint()
 #evoked.plot_sensors()
@@ -24,13 +24,13 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 ## Save ERP
 #for state in ['RS','FA','OM']:
 #    for block in get_blocks(subject, task=task, state=state):
-#        mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block)))[0].drop_channels(bad_chan).plot_joint(title = 'Subject {} - {} {}\n{}\n{} channels rejected'.format(subject, state, block, name, len(bad_chan)))
-#        plt.savefig(op.join(evoked_path, '{}-{}_{}-ERP_rejected.pdf'.format(name, state, block)), transparent=True)
+#        mne.read_evokeds(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)))[0].drop_channels(bad_chan).plot_joint(title = 'Subject {} - {} {}\n{}\n{} channels rejected'.format(subject, state, block, name, len(bad_chan)))
+#        plt.savefig(op.join(evoked_path, '{}_{}-{}-ERP_rejected.pdf'.format(state, block, name)), transparent=True)
 #        plt.close()
 #==============================================================================
 
 
-def baseline_covariance(task, subject, state, block_group, rejection={'mag':2500e-15}, baseline=(-.4,-.25), t_delay=.3, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded']):
+def ERP(task, subject, state, block_group, events=None, event_id=None, name='ECG_included', rejection={'mag':3500e-15}, baseline={'R':(-.4,-.25), 'T':(-.2,-.1)}, tmin=-1, tmax=1, n_components=.975):
     """
     Returns baseline noise covariance for the block_group and a dict containing a list of Evoked (for each block in block_group) assigned to their name.
     Parameters:
@@ -47,66 +47,70 @@ def baseline_covariance(task, subject, state, block_group, rejection={'mag':2500
     cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
     if not op.exists(cov_path):
         os.makedirs(cov_path)
-    epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
+    raw_path = op.join(Analysis_path, task, 'meg', 'Raw', subject)
+    ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
+    event_path = op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject)
     evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
     if not op.exists(evoked_path):
         os.makedirs(evoked_path)
+#    ICA_file = op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components))
+#    ica = read_ica(ICA_file)
     
-    # Initialise Epochs and Evokeds dict
-    epochs = dict()
-    evoked = dict()
+    epochs_list = []
+    evoked_list = []
     
-    for name in names:
-        # Use the proper baseline according the the Epochs name
-        if not baseline:
-            use_baseline = (None,0)
-        elif 'R_ECG' in name:
-            use_baseline = baseline
-        elif 'T_ECG' in name:
-            use_baseline = (baseline[0]-t_delay, baseline[1]-t_delay)
-        else:
-            use_baseline = baseline
+    for b,block in enumerate(block_group):
+        # Load raw and apply ica
+        raw = mne.io.read_raw_fif(op.join(raw_path, '{}_{}-raw.fif'.format(state, block)))
+        ica = read_ica(op.join('{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+        ica.exclude = ica.labels_['eog']
+        if name != 'ECG_included':
+            ica.exclude += ica.labels_['ecg']
+        ica.apply(raw)
         
-        epochs[name] = []
-        evoked[name] = []
+        #Epoch
+        epochs = mne.Epochs(raw, events, event_id, tmin, tmax, baseline=None, reject=rejection, reject_by_annotation=True)
+        epochs_list.append(epochs)
         
-        for b,block in enumerate(block_group):
-            epochs[name].append(mne.read_epochs(op.join(epochs_path, '{}-{}_{}-epo.fif'.format(name, state, block))))
-            
-            evoked_file = op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))
-            
-            # Apply rejection
-            if rejection:
-                epochs[name][b].drop_bad(rejection)
-                # Save drop log
-                epochs[name][b].plot_drop_log()
-                plt.savefig(op.join(epochs_path, '{}-{}_{}-drop_log.pdf'.format(name, state, block)), transparent=True)
-                plt.close()
-                
-                drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
-                with open(drop_log, 'a') as fid:
-                    fid.write('{} {} epochs dropped\t{}\n'.format(evoked_file.split('/')[-2:], len(np.array(epochs[name][b].drop_log)[np.where(epochs[name][b].drop_log)]), rejection))
+        # Apply baseline
+        for k in event_id.keys():
+            epochs[k].apply_baseline(baseline[k])
         
-            # Apply baseline
-            epochs[name][b].apply_baseline(use_baseline)
-            
-            # Save Evoked
-            evoked[name].append(epochs[name][b].average())
-            evoked[name][b].save(evoked_file)
-            
+        # Save Evoked
+        evoked = epochs.average()
+        evoked_list.append(evoked)
+        evoked_file = op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name))
+        evoked.save(evoked_file)
+        
+        # Plot and save drop log
+        epochs.plot_drop_log(subject=subject)
+        plt.savefig(op.join(epochs_path, '{}_{}-{}-drop_log.pdf'.format(state, block, name)), transparent=True)
+        plt.close()
+        
+        drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
+        with open(drop_log, 'a') as fid:
+            fid.write('{} {} epochs dropped\t{}\n'.format(evoked_file.split('/')[-2:], len(np.array(epochs.drop_log)[np.where(epochs.drop_log)]), rejection))
+        
+        for k in event_id.keys():
             # Plot ERP time course
-            evoked[name][b].plot_joint(title = 'Subject {} - {} {}\n{}'.format(subject, state, block, name))
-            plt.savefig(op.join(evoked_path, '{}-{}_{}-ERP.pdf'.format(name, state, block)), transparent=True)
+            evoked[k].plot_joint(title = 'Subject {} - {} {}\n{} {}'.format(subject, state, block, k, name))
+            plt.savefig(op.join(evoked_path, '{}_{}-{}_{}-ERP.pdf'.format(state, block, k, name)), transparent=True)
             plt.close()
-        
-        # Compute and save noise covariance
-        epochs[name] = mne.concatenate_epochs(epochs[name])
-        noise_cov = mne.compute_covariance(epochs[name], n_jobs=4)
-        
-        cov_file = op.join(cov_path, '{}-{}_{}-cov.fif'.format(name, state, '_'.join(block_group)))
-        mne.write_cov(cov_file, noise_cov)
+            
+            # Same without bad channels
+            bad_chan = list(set(evoked.info['bads']) | set(get_chan_name(subject, 'bad', evoked)))
+            mne.pick_channels_evoked(evoked, exclude=bad_chan)[k].plot_joint(title = 'Subject {} - {} {}\n{} {}\n{} channels rejected'.format(subject, state, block, k, name, len(bad_chan)))
+            plt.savefig(op.join(evoked_path, '{}_{}-{}_{}-ERP_rejected.pdf'.format(state, block, k, name)), transparent=True)
+            plt.close()
     
-    return noise_cov,evoked
+    # Compute and save noise covariance
+    all_epochs = mne.concatenate_epochs(epochs_list)
+    noise_cov = mne.compute_covariance(all_epochs, keep_sample_mean=False, n_jobs=4)
+    
+    cov_file = op.join(cov_path, '{}_{}-{}-cov.fif'.format(state, '_'.join(block_group), name))
+    mne.write_cov(cov_file, noise_cov)
+    
+    return noise_cov, evoked_list
 
 
 def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, tmin=None, tmax=None, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, fsaverage=True, baseline_cov=True, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], mindist=5, method="dSPM"):
@@ -163,16 +167,16 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, tmin
     stc_surf = dict.fromkeys(names)
     stc_vol = dict.fromkeys(names)
     
-    for name in names:
-        # Load Evokeds if not provided and combine the block_group
-        for block in block_group:
-            if load_evoked:
-                evoked[name].extend(mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))))
-        evoked[name] = mne.combine_evoked(evoked[name], 'nave')
-        
-        evoked[name].crop(tmin, tmax)
-        # Bad channels will be rejected when computing the inverse operator and SourceEstimate
-        bad_chan = list(set(evoked[name].info['bads']) | set(get_chan_name(subject, 'bad', evoked[name])))
+    # Load Evokeds if not provided and combine the block_group
+    for block in block_group:
+        if load_evoked:
+            evoked[name].extend(mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))))
+    evoked[name] = mne.combine_evoked(evoked[name], 'nave')
+    
+    evoked[name].crop(tmin, tmax)
+    # Bad channels will be rejected when computing the inverse operator and SourceEstimate
+    bad_chan = list(set(evoked[name].info['bads']) | set(get_chan_name(subject, 'bad', evoked[name])))
+    for k in event_id.keys()
         
         # Save files
         fwd_surf_file = op.join(stc_path, '{}_{}-{}-surface_{}-fwd.fif'.format(state, '_'.join(block_group), name, surface))

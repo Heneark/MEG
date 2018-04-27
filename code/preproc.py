@@ -144,7 +144,7 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     return ica
 
 
-def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_args=dict()):
+def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_args=dict(), update_HPI=True, precision='0.5cm', opt='start'):
     """
     Run preprocessing and return preprocessed raw data.
     If check_ica, plot overlay and properties of ECG and EOG components (default to True).
@@ -227,6 +227,16 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
             if save_ica:
                 plt.savefig(op.join(ICA_path, '{}_{}-{}_components-properties_eog{}.pdf'.format(state, block, n_components, comp)), transparent=True)
                 plt.close()
+    
+    # Save pre-processed data with updated head coordinates
+    if update_HPI:
+        raw = HPI_update(task, subject, block, raw.copy(), precision=precision, opt=opt, reject_head_mvt=False)
+        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block))
+        if not op.isdir(op.dirname(raw_file)):
+            os.makedirs(op.dirname(raw_file))
+        raw.save(raw_file)
+        
+        return raw
     
     # Apply ICA
     raw_ECG = raw.copy()
@@ -384,9 +394,10 @@ def HPI_update(task, subject, block, data, precision='0.5cm', opt='start', rejec
     
     if bads and reject_head_mvt:
         for i in range(len(bad_segments)):
-            events = data.events[:,0]/data.info['sfreq'] #extract event timing
-            data.drop(np.logical_and(bad_segments.iloc[i][0] < events + data.times[-1], events + data.times[0] < bad_segments.iloc[i][1]), reason = 'head_movement')
-            #reject the epoch if it ends after the beginning of the bad segment, and starts before the end of the bad segment
+            raw.annotations = mne.Annotations(onset, duration, ['bad head mvt'] * n_blinks)
+#            events = data.events[:,0]/data.info['sfreq'] #extract event timing
+#            data.drop(np.logical_and(bad_segments.iloc[i][0] < events + data.times[-1], events + data.times[0] < bad_segments.iloc[i][1]), reason = 'head_movement')
+#            #reject the epoch if it ends after the beginning of the bad segment, and starts before the end of the bad segment
     
     return data
 
@@ -443,15 +454,15 @@ def epoch(task, subject, state, block, raw, name, events, event_id, save=True, r
     return epochs
 
 
-def R_T_ECG_events(task, subject, state, block, raw, custom_args, R_id=999, T_id=333, T_window=[.1,.5], var=.05, l_freq=None, h_freq=None, save=True, custom_ecg=dict()):
+def R_T_ECG_events(task, subject, state, block, raw, custom_args, R_id=999, T_id=333, T_window=[.1,.5], var=.05, l_freq=None, h_freq=None, save=True, custom_ecg=dict(), reject_gaussian=True, coverage=2):
     """
     From raw data containing at least the ECG channel, returns events and event_id corresponding to both R and T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
     """
     # Save T peak timing
-    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}-{}_{}.tsv'.format(l_freq, h_freq, T_window[0], T_window[1]))
+    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}-{}_{}-{}_var-{}_coverage.tsv'.format(l_freq, h_freq, T_window[0], T_window[1], var, coverage))
     if save and not op.isfile(timing_file):
         with open(timing_file, 'w') as fid:
-            fid.write('subject\tstate\tblock\tR_peak\tT_delay\n')
+            fid.write('subject\tstate\tblock\tR_peak\tT_delay\tT_included\n')
     
     # Epoch ECG on R peak
     ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
@@ -483,17 +494,28 @@ def R_T_ECG_events(task, subject, state, block, raw, custom_args, R_id=999, T_id
     data = epo.get_data()[:, 0, :]
     T_times_i = (R_sign*data[:, T_window_i[0]:T_window_i[1]]).argmax(axis=1) + T_window_i[0]
     
-    # Save timing of R peaks and delay until T peak (in sec)
-    T_times = epo.times[T_times_i]
-    if save:
-        for i in range(len(T_times)):
-            with open(timing_file, 'a') as fid:
-                fid.write("{}\t{}\t{}\t{}\t{}\n".format(subject, state, block, np.round(raw.times[epo.events[i,0]],3), np.round(T_times[i], 3)))
+    mask = np.where(T_times_i)
+    if reject_gaussian:
+        mu = np.mean(T_times_i)
+        sigma = np.std(T_times_i)
+        filt_win = [mu - coverage * sigma, mu + coverage * sigma]
+        
+        mask = np.where(np.logical_and(filt_win[0] < T_times_i, T_times_i < filt_win[1]))
     
     # Create T events
     T_events = epo.copy().events
     T_events[:,0] += T_times_i - epo.time_as_index(0)
     T_events[:,2] = T_id
+    T_events = T_events[mask]
+    
+    # Save timing of R peaks and delay until T peak (in sec)
+    T_times = epo.times[T_times_i]
+    included = np.zeros(T_times.shape)
+    included[mask] = 1
+    if save:
+        for i in range(len(T_times)):
+            with open(timing_file, 'a') as fid:
+                fid.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(subject, state, block, np.round(raw.times[epo.events[i,0]],3), np.round(T_times[i], 3), included[i]))
     
     # Combine R and T events
     events = np.concatenate([epo.events, T_events])
