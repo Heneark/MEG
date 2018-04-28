@@ -230,11 +230,11 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     
     # Save pre-processed data with updated head coordinates
     if update_HPI:
-        raw = HPI_update(task, subject, block, raw.copy(), precision=precision, opt=opt, reject_head_mvt=False)
+        raw = HPI_update(task, subject, block, raw.copy(), precision=precision, opt=opt, reject_head_mvt=True)
         raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block))
         if not op.isdir(op.dirname(raw_file)):
             os.makedirs(op.dirname(raw_file))
-        raw.save(raw_file)
+        raw.save(raw_file, overwrite=True)
         
         return raw
     
@@ -394,7 +394,7 @@ def HPI_update(task, subject, block, data, precision='0.5cm', opt='start', rejec
     
     if bads and reject_head_mvt:
         for i in range(len(bad_segments)):
-            raw.annotations = mne.Annotations(onset, duration, ['bad head mvt'] * n_blinks)
+            data.annotations = mne.Annotations(bad_segments.get_values()[:,0], np.diff(bad_segments.get_values()).ravel(), ['bad head mvt'] * bad_segments.get_values().shape[0])
 #            events = data.events[:,0]/data.info['sfreq'] #extract event timing
 #            data.drop(np.logical_and(bad_segments.iloc[i][0] < events + data.times[-1], events + data.times[0] < bad_segments.iloc[i][1]), reason = 'head_movement')
 #            #reject the epoch if it ends after the beginning of the bad segment, and starts before the end of the bad segment
@@ -454,7 +454,7 @@ def epoch(task, subject, state, block, raw, name, events, event_id, save=True, r
     return epochs
 
 
-def R_T_ECG_events(task, subject, state, block, raw, custom_args, R_id=999, T_id=333, T_window=[.1,.5], var=.05, l_freq=None, h_freq=None, save=True, custom_ecg=dict(), reject_gaussian=True, coverage=2):
+def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_id=999, T_id=333, T_window=[.1,.5], var=.05, l_freq=None, h_freq=None, save=True, reject_gaussian=True, coverage=2):
     """
     From raw data containing at least the ECG channel, returns events and event_id corresponding to both R and T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
     """
@@ -464,12 +464,17 @@ def R_T_ECG_events(task, subject, state, block, raw, custom_args, R_id=999, T_id
         with open(timing_file, 'w') as fid:
             fid.write('subject\tstate\tblock\tR_peak\tT_delay\tT_included\n')
     
+    # Load data
+    if not raw:
+        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block))
+        raw = mne.io.read_raw_fif(raw_file, preload=True)
+    
     # Epoch ECG on R peak
     ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
     if custom_args:
-        epo, pulse = custom_ecg_epochs(ecg, custom_args, event_id=R_id)
+        epo, pulse = custom_ecg_epochs(ecg, custom_args, reject_by_annotation=False, event_id=R_id)
     else:
-        epo = create_ecg_epochs(ecg, event_id=R_id)
+        epo = create_ecg_epochs(ecg, reject_by_annotation=False, event_id=R_id)
     
     # Get the average ECG waveform
     epo.set_channel_types({ch:'eeg' for ch in ecg.ch_names})
@@ -481,7 +486,7 @@ def R_T_ECG_events(task, subject, state, block, raw, custom_args, R_id=999, T_id
     else:
         R_sign = np.sign(np.subtract(erp.data.ravel(), np.median(erp.data.ravel()))[erp.time_as_index(0)][0])
     if not R_sign:
-        raise ValueError("Sign of the R_peak could not be determined.")
+        raise ValueError("Sign of the R peak could not be determined.")
     
     # Get average T peak timing
     pos_data = erp.data * R_sign
@@ -523,11 +528,9 @@ def R_T_ECG_events(task, subject, state, block, raw, custom_args, R_id=999, T_id
     event_id = {'R': R_id, 'T': T_id}
     
     # Save events
-    str_id = '+'.join('{}_{}'.format(k, v) for k, v in event_id.items())
-    event_file = op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}+{}.csv'.format(state, block, str_id))
-    if not op.isdir(op.dirname(event_file)):
-        os.makedirs(op.dirname(event_file))
-    np.savetxt(event_file, events, delimiter=',')
+    event_file = op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}+R_{}+T_{}.eve'.format(state, block, R_id, T_id))
+    os.makedirs(op.dirname(event_file), exist_ok=True)
+    mne.write_events(event_file, events)
     
     return events, event_id
 
@@ -682,7 +685,7 @@ def t_detector_sliding(task, subject, state, block, raw, R_sign=0, event_id=333,
     return T_events,T_times,R_epochs,raw
 
 
-def check_ecg_epoch(task, subject, state, block, raw=None, epochs=None, events=np.array([]), name='R_ECG_included', synthetic=True, save=False):
+def check_ecg_epoch(task, subject, state, block, raw=None, events=np.array([]), n_components=.975, synthetic=True, save=False):
     """
     Plot ECG along with events used for epoching. If synthetic, create and plot a synthetic ECG channel as well.
     """
@@ -690,23 +693,18 @@ def check_ecg_epoch(task, subject, state, block, raw=None, epochs=None, events=n
     if not op.exists(epochs_path):
         os.makedirs(epochs_path)
     
+    # Load data
     if not raw:
-        if synthetic:
-            _, raw = process(task, subject, state, block, check_ica=False, save_ica=False)
-        else:
-            raw_fname = op.join(Raw_data_path, task, 'meg', op.join(* get_rawpath(subject, task=task)) + block + '.ds')
-            raw = mne.io.read_raw_ctf(raw_fname, preload=False)
-            raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
-            
-            # Crop recording
-            events = mne.find_events(raw)
-            start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0
-            end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[1][0]] > 300 else None
-            raw.crop(tmin=start, tmax=end)
+        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block))
+        raw = mne.io.read_raw_fif(raw_file, preload=True)
     
     ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
     
     if synthetic:
+        ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+        ica.exclude = ica.labels_['eog']
+        ica.apply(raw)
+        
         # Add synthetic channel as in MNE's create_ecg_epochs():
         ecg_syn = raw.get_data(picks=mne.pick_types(raw.info, meg='mag', ref_meg=False)).mean(axis=0)
         ecg_raw = mne.io.RawArray(ecg_syn[None], mne.create_info(ch_names=['ECG-SYN'], sfreq=raw.info['sfreq'], ch_types=['mag']))
@@ -718,9 +716,9 @@ def check_ecg_epoch(task, subject, state, block, raw=None, epochs=None, events=n
         ecg.add_channels([ecg_raw])
     
     if not events.any():
-        if not epochs and not events:
-            epochs = mne.read_epochs(op.join(epochs_path, '{}-{}_{}-epo.fif'.format(name, state, block)), preload=False)
-        events = epochs.events
+        #Load events and extract event ids
+        event_file = glob.glob(op.join(epochs_path, 'Events', subject, '{}_{}*.eve'.format(state, block,)))[0]
+        events = mne.read_events(event_file)
     
     ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto')
     if save:

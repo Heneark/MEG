@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 #==============================================================================
 
 
-def ERP(task, subject, state, block_group, events=None, event_id=None, name='ECG_included', rejection={'mag':3500e-15}, baseline={'R':(-.4,-.25), 'T':(-.2,-.1)}, tmin=-1, tmax=1, n_components=.975):
+def ERP(task, subject, state, block_group, name='ECG_included', keys=['R','T'], rejection={'mag':3500e-15}, baseline={'R':(-.4,-.25), 'T':(-.175,-.1)}, tmin=-.8, tmax=.8, n_components=.975):
     """
     Returns baseline noise covariance for the block_group and a dict containing a list of Evoked (for each block in block_group) assigned to their name.
     Parameters:
@@ -49,7 +49,7 @@ def ERP(task, subject, state, block_group, events=None, event_id=None, name='ECG
         os.makedirs(cov_path)
     raw_path = op.join(Analysis_path, task, 'meg', 'Raw', subject)
     ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
-    event_path = op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject)
+    epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs')
     evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
     if not op.exists(evoked_path):
         os.makedirs(evoked_path)
@@ -57,34 +57,45 @@ def ERP(task, subject, state, block_group, events=None, event_id=None, name='ECG
 #    ica = read_ica(ICA_file)
     
     epochs_list = []
-    evoked_list = []
+    evoked_list = {k: [] for k in keys}
+    evoked = dict()
     
     for b,block in enumerate(block_group):
         # Load raw and apply ica
-        raw = mne.io.read_raw_fif(op.join(raw_path, '{}_{}-raw.fif'.format(state, block)))
-        ica = read_ica(op.join('{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+        raw = mne.io.read_raw_fif(op.join(raw_path, '{}_{}-raw.fif'.format(state, block)), preload=True)
+        ica = read_ica(op.join(ICA_path, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
         ica.exclude = ica.labels_['eog']
         if name != 'ECG_included':
             ica.exclude += ica.labels_['ecg']
         ica.apply(raw)
         
+        #Load events and extract event ids
+        event_file = glob.glob(op.join(epochs_path, 'Events', subject, '{}_{}+{}_*.eve'.format(state, block, '_*+'.join(keys))))[0]
+        events = mne.read_events(event_file)
+        
+        ids = op.splitext(op.basename(event_file))[0].split('+')[1:]
+        event_id = dict()
+        for i in ids:
+            k, v = i.split('_')
+            event_id[k] = int(v)
+        
         #Epoch
-        epochs = mne.Epochs(raw, events, event_id, tmin, tmax, baseline=None, reject=rejection, reject_by_annotation=True)
+        epochs = mne.Epochs(raw, events, event_id, tmin, tmax, baseline=None, reject=rejection, reject_by_annotation=True, preload=True)
         epochs_list.append(epochs)
         
-        # Apply baseline
         for k in event_id.keys():
+            # Apply baseline
             epochs[k].apply_baseline(baseline[k])
+            # Save Evoked
+            evoked[k] = epochs[k].average()
+            evoked_list[k].append(evoked[k])
         
-        # Save Evoked
-        evoked = epochs.average()
-        evoked_list.append(evoked)
         evoked_file = op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name))
-        evoked.save(evoked_file)
+        mne.write_evokeds(evoked_file, [evo for evo in evoked.values()])
         
         # Plot and save drop log
         epochs.plot_drop_log(subject=subject)
-        plt.savefig(op.join(epochs_path, '{}_{}-{}-drop_log.pdf'.format(state, block, name)), transparent=True)
+        plt.savefig(op.join(epochs_path, subject, '{}_{}-{}-drop_log.pdf'.format(state, block, name)), transparent=True)
         plt.close()
         
         drop_log = op.join(Analysis_path, task, 'meg', 'Epochs', 'drop_log.txt')
@@ -98,10 +109,12 @@ def ERP(task, subject, state, block_group, events=None, event_id=None, name='ECG
             plt.close()
             
             # Same without bad channels
-            bad_chan = list(set(evoked.info['bads']) | set(get_chan_name(subject, 'bad', evoked)))
-            mne.pick_channels_evoked(evoked, exclude=bad_chan)[k].plot_joint(title = 'Subject {} - {} {}\n{} {}\n{} channels rejected'.format(subject, state, block, k, name, len(bad_chan)))
-            plt.savefig(op.join(evoked_path, '{}_{}-{}_{}-ERP_rejected.pdf'.format(state, block, k, name)), transparent=True)
-            plt.close()
+            bad_chan = list(set(evoked[k].info['bads']) | set(get_chan_name(subject, 'bad', evoked[k])))
+            if bad_chan:
+                evo = mne.pick_channels_evoked(evoked[k], exclude=bad_chan)
+                evo.plot_joint(title = 'Subject {} - {} {}\n{} {}\n{} channels rejected'.format(subject, state, block, k, name, len(bad_chan)))
+                plt.savefig(op.join(evoked_path, '{}_{}-{}_{}-ERP_rejected.pdf'.format(state, block, k, name)), transparent=True)
+                plt.close()
     
     # Compute and save noise covariance
     all_epochs = mne.concatenate_epochs(epochs_list)
@@ -113,7 +126,7 @@ def ERP(task, subject, state, block_group, events=None, event_id=None, name='ECG
     return noise_cov, evoked_list
 
 
-def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, tmin=None, tmax=None, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, fsaverage=True, baseline_cov=True, names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded'], mindist=5, method="dSPM"):
+def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, keys=['R','T'], name='ECG_included', window={'R':(.35,.5), 'T':(.05,.2)}, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, fsaverage=True, baseline_cov=True, mindist=5, method="dSPM"):
     """
     If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
     If compute_inv=True, compute and save inverse solution.
@@ -157,98 +170,101 @@ def src_rec(task, subject, state, block_group, evoked=None, noise_cov=None, tmin
     if not noise_cov and not baseline_cov:
         noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
     
-    # Initialise Evokeds dict if not provided
-    load_evoked = False
-    if not evoked:
-        evoked = {name:[] for name in names}
-        load_evoked = True
+    # Evokeds will be loaded if not provided
+    load_evoked = True if not evoked else False
     
     # Initialise SourceEstimates dict
-    stc_surf = dict.fromkeys(names)
-    stc_vol = dict.fromkeys(names)
-    
-    # Load Evokeds if not provided and combine the block_group
-    for block in block_group:
+    stc_surf = dict()
+    stc_vol = dict()
+    fwd_surf = None
+    inv_surf = None
+    fwd_vol = None
+    inv_vol = None
+
+    for k in keys:
+        # Load Evokeds if not provided and combine the block_group
         if load_evoked:
-            evoked[name].extend(mne.read_evokeds(op.join(evoked_path, '{}-{}_{}-ave.fif'.format(name, state, block))))
-    evoked[name] = mne.combine_evoked(evoked[name], 'nave')
+            evoked[k] = []
+            for block in block_group:
+                evoked[k].append(mne.Evoked(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)), condition = k))
+        
+        evoked[k] = mne.combine_evoked(evoked[k], 'nave')
+        evoked[k].crop(*window[k])
     
-    evoked[name].crop(tmin, tmax)
+    k0 = keys[0]
+    
     # Bad channels will be rejected when computing the inverse operator and SourceEstimate
-    bad_chan = list(set(evoked[name].info['bads']) | set(get_chan_name(subject, 'bad', evoked[name])))
-    for k in event_id.keys()
+    bad_chan = list(set(evoked[k0].info['bads']) | set(get_chan_name(subject, 'bad', evoked[k0])))
+    
+    # Save files
+    fwd_surf_file = op.join(stc_path, '{}_{}-{}-surface_{}-fwd.fif'.format(state, '_'.join(block_group), name, surface))
+    fwd_vol_file = op.join(stc_path, '{}_{}-{}-volume_{}-fwd.fif'.format(state, '_'.join(block_group), name, volume))
+    inv_surf_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
+    inv_vol_file = op.join(stc_path, '{}_{}-{}-{}-volume_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume))
+    
+    # Do surface SourceEstimate
+    if surface:
+        # Compute forward solution
+        if compute_fwd:
+            fwd_surf = mne.make_forward_solution(evoked[k0].info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
+            mne.write_forward_solution(fwd_surf_file, fwd_surf, overwrite = True)
         
-        # Save files
-        fwd_surf_file = op.join(stc_path, '{}_{}-{}-surface_{}-fwd.fif'.format(state, '_'.join(block_group), name, surface))
-        fwd_vol_file = op.join(stc_path, '{}_{}-{}-volume_{}-fwd.fif'.format(state, '_'.join(block_group), name, volume))
-        inv_surf_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
-        inv_vol_file = op.join(stc_path, '{}_{}-{}-{}-volume_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume))
-        stc_surf_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
-        stc_vol_file = op.join(stc_path, '{}_{}-{}-{}-volume_{}'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume))
+        # Compute inverse solution
+        if compute_inv:
+            # Load baseline covariance if appropriate
+            if baseline_cov and not noise_cov:
+                noise_cov = mne.read_cov(op.join(cov_path, '{}-{}_{}-cov.fif'.format(name, state, '_'.join(block_group))))
+            
+            # Load forward solution
+            if not fwd_surf:
+                fwd_surf = mne.read_forward_solution(fwd_surf_file)
+            inv_surf = make_inverse_operator(mne.pick_channels_evoked(evoked[k0], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan))
+            write_inverse_operator(inv_surf_file, inv_surf)
         
-        # Do surface SourceEstimate
-        if surface:
-            # Compute forward solution
-            fwd_surf = None
-            if compute_fwd:
-                fwd_surf = mne.make_forward_solution(evoked[name].info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
-                mne.write_forward_solution(fwd_surf_file, fwd_surf, overwrite = True)
-            
-            # Compute inverse solution
-            inv_surf = None
-            if compute_inv:
-                # Load baseline covariance if appropriate
-                if baseline_cov and not noise_cov:
-                    noise_cov = mne.read_cov(op.join(cov_path, '{}-{}_{}-cov.fif'.format(name, state, '_'.join(block_group))))
-                
-                # Load forward solution
-                if not fwd_surf:
-                    fwd_surf = mne.read_forward_solution(fwd_surf_file)
-                inv_surf = make_inverse_operator(mne.pick_channels_evoked(evoked[name], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan))
-                write_inverse_operator(inv_surf_file, inv_surf)
-            
+        for k in keys:
             # Compute SourceEstimate
             if compute_stc:
+                stc_surf_file = op.join(stc_path, '{}_{}-{}_{}-{}-surface_{}'.format(state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
                 # Load inverse solution
                 if not inv_surf:
                     inv_surf = read_inverse_operator(inv_surf_file)
-                stc_surf[name] = apply_inverse(mne.pick_channels_evoked(evoked[name], exclude=bad_chan), inv_surf, method=method)
-                stc_surf[name].save(stc_surf_file)
+                stc_surf[k] = apply_inverse(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), inv_surf, method=method)
+                stc_surf[k].save(stc_surf_file)
             
             if fsaverage:
-                if not stc_surf[name]:
-                    stc_surf[name] = mne.read_source_estimate(stc_surf_file)
-                fs_stc = mne.morph_data(subject, 'fsaverage', stc_surf[name], n_jobs=4)
+                if not stc_surf[k]:
+                    stc_surf[k] = mne.read_source_estimate(stc_surf_file)
+                fs_stc = mne.morph_data(subject, 'fsaverage', stc_surf[k], n_jobs=4)
                 fs_stc.save(stc_surf_file + '-fsaverage')
+    
+    # Do volume SourceEstimate
+    if volume:
+        # Compute forward solution if not do_morphing else '')+'-lh.stc'
+        if compute_fwd:
+            fwd_vol = mne.make_forward_solution(evoked[k0].info, trans=trans_file, src=src_vol, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
+            mne.write_forward_solution(fwd_vol_file, fwd_vol, overwrite = True)
         
-        # Do volume SourceEstimate
-        if volume:
-            # Compute forward solution if not do_morphing else '')+'-lh.stc'
-            fwd_vol = None
-            if compute_fwd:
-                fwd_vol = mne.make_forward_solution(evoked[name].info, trans=trans_file, src=src_vol, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
-                mne.write_forward_solution(fwd_vol_file, fwd_vol, overwrite = True)
+        # Compute inverse solution
+        if compute_inv:
+            # Load baseline covariance if appropriate
+            if baseline_cov and not noise_cov:
+                noise_cov = mne.read_cov(op.join(cov_path, '{}-{}_{}-cov.fif'.format(name, state, '_'.join(block_group))))
             
-            # Compute inverse solution
-            inv_vol = None
-            if compute_inv:
-                # Load baseline covariance if appropriate
-                if baseline_cov and not noise_cov:
-                    noise_cov = mne.read_cov(op.join(cov_path, '{}-{}_{}-cov.fif'.format(name, state, '_'.join(block_group))))
-                
-                # Load forward solution
-                if not fwd_vol:
-                    fwd_vol = mne.read_forward_solution(fwd_vol_file)
-                inv_vol = make_inverse_operator(mne.pick_channels_evoked(evoked[name], exclude=bad_chan).info, mne.pick_channels_forward(fwd_vol, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan), loose=1)
-                write_inverse_operator(inv_vol_file, inv_vol)
-            
+            # Load forward solution
+            if not fwd_vol:
+                fwd_vol = mne.read_forward_solution(fwd_vol_file)
+            inv_vol = make_inverse_operator(mne.pick_channels_evoked(evoked[k0], exclude=bad_chan).info, mne.pick_channels_forward(fwd_vol, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan), loose=1)
+            write_inverse_operator(inv_vol_file, inv_vol)
+        
+        for k in keys:
             # Compute SourceEstimate
             if compute_stc:
+                stc_vol_file = op.join(stc_path, '{}_{}-{}_{}-{}-volume_{}'.format(state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume))
                 # Load inverse solution
                 if not inv_vol:
                     inv_vol = read_inverse_operator(inv_vol_file)
-                stc_vol[name] = apply_inverse(mne.pick_channels_evoked(evoked[name], exclude=bad_chan), inv_vol, method=method)
-                stc_vol[name].save(stc_vol_file)
+                stc_vol[k] = apply_inverse(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), inv_vol, method=method)
+                stc_vol[k].save(stc_vol_file)
     
     return stc_surf,stc_vol
 

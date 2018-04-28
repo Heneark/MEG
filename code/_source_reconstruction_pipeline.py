@@ -82,7 +82,7 @@ custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM0
               '028': {'R_sign': -1, 'heart_rate': 55},
               '069': {'R_sign': -1, 'heart_rate': 94}}
 
-for sub in subjects:
+for sub in subjects[1:]:
     if not op.isfile(op.join(Analysis_path, task, 'meg', 'Covariance', sub, 'empty_room-cov.fif')):
         empty_room_covariance(task, sub)
     for state in states:
@@ -92,23 +92,14 @@ for sub in subjects:
                 custom_args = custom_ecg[sub].copy()
             if 'tstart' in custom_args.keys():
                 custom_args['tstart'] = custom_args['tstart'][state+blk]
-            
-#            data = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5, check_ica=False, custom_args=custom_args)
-#            events, event_id = R_T_ECG_events(task, sub, state, blk, data['ECG_included'], custom_args)
-#            check_ecg_epoch(task, sub, state, blk, data['ECG_included'], events=events, save=True)
-#            for i, (name, raw) in enumerate(data.items()):
-#                epochs = epoch(task, sub, state, blk, raw, name, events, event_id)
-
-#reject = list(custom_ecg.keys())
-#for sub in reject:
-#    if sub in subjects:
-#        subjects.remove(sub)
-#for sub in subjects[subjects.index('071'):]:
-##    empty_room_covariance(task, sub)
-#    for state in states:
-#        for blk in get_blocks(sub, task=task, state=state):
-##            raw,raw_ECG = process(task='MIMOSA', sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5)
-#            epochs = epoch(task, sub, state, blk, save_t_timing=True, names=['T_ECG_included','T_ECG_excluded'])
+            try:
+                raw = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5, check_ica=False, custom_args=custom_args)
+                events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
+                check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
+            except:
+                with open('run.log', 'a') as fid:
+                    fid.write(sub+'\t'+state+'\t'+blk+'\t'+'preproc bug\n')
+                pass
 
 
 #%% COREGISTRATION (https://www.slideshare.net/mne-python/mnepython-coregistration)
@@ -121,12 +112,12 @@ for sub in subjects:
 
 
 #%% SOURCE RECONSTRUCTION
-from source_reconstruction import baseline_covariance, src_rec, fs_average
+from source_reconstruction import ERP, src_rec, fs_average
 
-names = ['R_ECG_included', 'R_ECG_excluded']#, 'T_ECG_included', 'T_ECG_excluded']#
+names = ['ECG_included', 'ECG_excluded']#, 'T_ECG_included', 'T_ECG_excluded']#
 precision = '0.5cm'
 
-for sub in subjects:#['004', '010', '054', '071']:#
+for sub in subjects[1:]:#['004', '010', '054', '071']:#
     coreg_list = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', sub, '*'+precision+'*-trans.fif'))
     for c,coreg in enumerate(coreg_list):
         coreg_list[c] = set(op.split(coreg)[-1].split(precision)[-1].strip('-trans.fif').split('_')[1:])
@@ -139,9 +130,16 @@ for sub in subjects:#['004', '010', '054', '071']:#
                 coreg_by_state.append(sorted(list(blk_list & coreg)))
         
         for group in coreg_by_state:
-#            noise_cov,evoked = baseline_covariance(task, sub, state, block_group=group, rejection={'mag':3500e-15}, baseline=(-.4,-.25), names=names)
-            stc_surf,stc_vol = src_rec(task, sub, state, evoked=None, noise_cov=None, block_group=group, names=names, compute_fwd=False, compute_inv=False, compute_stc=True, tmin=.35, tmax=.5)
+            for name in names:
+                try:
+                    noise_cov, evoked = ERP(task, sub, state, block_group=group, name=name, keys=['R','T'], rejection={'mag':3500e-15}, baseline={'R':(-.4,-.25), 'T':(-.175,-.1)}, tmin=-.8, tmax=.8)
+                    stc_surf, stc_vol = src_rec(task, sub, state, evoked=evoked, noise_cov=noise_cov, block_group=group, name=name, compute_fwd=True, compute_inv=True, compute_stc=True)
+                except:
+                    with open('run.log', 'a') as fid:
+                        fid.write(sub+'\t'+state+'\t'+str(group)+'\t'+name+'\t'+'source reconstruction bug\n')
+                    pass
 #
+names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']#
 for name in names:
     for state in states:
         fs_average(task, state, name=name, subjects=subjects, do_morphing=False, overwrite=False)
