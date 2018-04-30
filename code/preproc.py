@@ -19,7 +19,18 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 # subject='050'; state='RS'; block='01'; task='SMEG'; n_components=.975; name='ECG_included'
 
-# # ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+#raw = mne.io.read_raw_fif(op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block)), preload=True)
+#ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+#ica.exclude = ica.labels_['eog']
+#if name != 'ECG_included':
+#    ica.exclude += ica.labels_['ecg']
+#ica.apply(raw)
+#ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
+#epo = create_ecg_epochs(ecg, reject_by_annotation=False)
+#epo.set_channel_types({ch:'eeg' for ch in ecg.ch_names})
+#erp = epo.average()
+#erp.get_peak(tmin=.15, tmax=.4, mode='neg')
+
 # ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
 # # ica.labels_['ecg_scores'][np.where(ica.labels_['ecg_scores']>0.1)]
 
@@ -454,7 +465,7 @@ def epoch(task, subject, state, block, raw, name, events, event_id, save=True, r
     return epochs
 
 
-def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_id=999, T_id=333, T_window=[.1,.5], var=.05, l_freq=None, h_freq=None, save=True, reject_gaussian=True, coverage=2):
+def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_id=999, T_id=333, T_window=[.15,.4], var=.05, l_freq=None, h_freq=None, save=True, reject_gaussian=True, coverage=2):
     """
     From raw data containing at least the ECG channel, returns events and event_id corresponding to both R and T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
     """
@@ -689,9 +700,8 @@ def check_ecg_epoch(task, subject, state, block, raw=None, events=np.array([]), 
     """
     Plot ECG along with events used for epoching. If synthetic, create and plot a synthetic ECG channel as well.
     """
-    epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs', subject)
-    if not op.exists(epochs_path):
-        os.makedirs(epochs_path)
+    epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs')
+    os.makedirs(op.join(epochs_path, subject), exist_ok=True)
     
     # Load data
     if not raw:
@@ -722,7 +732,7 @@ def check_ecg_epoch(task, subject, state, block, raw=None, events=np.array([]), 
     
     ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto')
     if save:
-        plt.savefig(op.join(epochs_path, '{}_{}-ECG.pdf'.format(state, block)), transparent=True)
+        plt.savefig(op.join(epochs_path, subject, '{}_{}-ECG.pdf'.format(state, block)), transparent=True)
         plt.close()
     
     return ecg
