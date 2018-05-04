@@ -783,7 +783,7 @@ end
 % Set default filename
 subject = split(Header.filename{1}, '/');
 subject = subject{end-1};
-filepath = strcat('/dycog/meditation/ERC/Analyses/SMEG/meg/HC_for_coreg/', subject);
+filepath = strcat('/dycog/meditation/ERC/Analyses/SMEG/meg/Coregistration/', subject);
 mkdir(filepath)
 
 filename = strcat(subject, '_', precision, Header.unit);

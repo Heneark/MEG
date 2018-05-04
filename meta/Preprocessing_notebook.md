@@ -586,9 +586,9 @@ _**Corrected when coil proportions shouldn't be kept; all others should be zero 
 ---
 01: MinMax (difference <= 0.0292), bad = [60,90] + last 2 min
 
-`01+start`: preserved the beginning to the cost of the last 140 sec (MinMax with X_Left = 0.15, Y_Left = 0.1, Z_Left = -0.2, difference <= 0.0404 cm)
-
 `01+end`: preserved the end to the cost of the first 120 sec (MinMax with X_Left = 0.25, Y_Left = 0.2, Z_Left = -0.4, difference <= 0.0477 cm)
+
+`01+start`: preserved the beginning to the cost of the last 140 sec (MinMax with X_Left = 0.15, Y_Left = 0.1, Z_Left = -0.2, difference <= 0.0404 cm)
 
 
 21/03/2018
@@ -620,3 +620,93 @@ No head-dense.fif, coregistration gui works anyway (same for subjects 083 and 09
 054
 ---
 Noise data are from the day before (same for subjects 068 and 109) => updated csv_io not to get the error
+
+
+02/05/2018
+==========
+
+057
+---
+`14`: couldn't keep coil proportions (MinMax, difference <= 0.0177 cm)
+
+
+057
+---
+`01`: couldn't keep coil proportions (MinMax, difference <= 0.0303 cm)
+
+
+065
+---
+`06`: Huge movement at the end of meditation, impossible to preserve the end (about 10 sec lost, Mean, difference <= 0.0320 cm)
+
+
+075
+---
+`01`: couldn't keep coil proportions (MinMax, difference <= 0.0371 cm)
+
+`06`: couldn't keep coil proportions (MinMax, difference <= 0.0205 cm)
+
+
+098
+---
+01: Huge movement at 75 sec, and another substantial one at 285 sec.
+
+`01+end`: preserved the end to the cost of the first 2 min (Median with Z_Left = -0.55, difference <= 0.0535 cm)
+
+`01+start`: preserved the beginning to the cost of the last 2 min + 5 sec around 75 sec (Median, difference <= 0.0235 cm)
+
+`06+end`: preserved the end to the cost of the first 45 sec (Mean, difference <= 0.0492 cm)
+
+`06+start`: preserved the beginning to the cost of the last 80 sec (MidAll with Z = -0.44)
+
+
+103
+---
+`06+start`: Peak movement at 363 sec (one bad segment)
+
+`06+end`: Preserved the bad segment but couldn't keep coil proportions (MinMax with X_Nasion = 0 and Z_Nazion = 0.32, difference <= 0.0952 cm)
+
+
+04/05/2018
+==========
+
+057
+---
+No blinks ? Or very small amplitude --> EOG component picks up alpha
+
+
+058
+---
+`FA_14`: 2nd weak and noisy EOG component
+
+
+059
+---
+Nothing to report.
+
+
+065
+---
+Weak ECG components (None for `FA_10`).
+
+`OM_14`: Weak EOG component (no obvious blink in data, but still ocular activity).
+
+
+092
+---
+Nothing to report.
+
+
+101
+---
+Nothing to report.
+
+
+104
+---
+Nothing to report.
+
+
+108
+---
+`FA_14`: weird EOG components (probably due to numerous double blinks + long blinks)

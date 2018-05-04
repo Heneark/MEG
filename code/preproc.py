@@ -34,7 +34,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 # ica = run_ica(task, subject, state, block, save=False, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, ica_rejection=ica_rejection)
 # # ica.labels_['ecg_scores'][np.where(ica.labels_['ecg_scores']>0.1)]
 
-# raw = process(task, subject, state, block, check_ica=False, save_ica=False, ica=None)
+# raw = process(task, subject, state, block, check_ica=False, save_ica=False, ica=None, update_HPI=False)[name]
 # # eog = raw[name].copy().pick_types(meg=False, ref_meg=False, eog=True)
 # # ecg = raw[name].copy().pick_types(meg=False, ref_meg=False, ecg=True)
 
@@ -116,13 +116,13 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     
     # Detect ECG and EOG artifacts
     if custom_args:
-        _, scores, pulse = custom_bads_ecg(raw, custom_args, threshold=ECG_threshold)
+        _, scores, pulse = custom_bads_ecg(ica, raw.copy(), custom_args, threshold=ECG_threshold)
         ica.labels_['ecg_scores'] = scores.tolist()
     else:
-        ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw, threshold=ECG_threshold)[1].tolist()
-        pulse = mne.preprocessing.find_ecg_events(raw, l_freq=8, h_freq=16, ch_name=get_chan_name(subject, 'ecg_chan', raw))[2]
+        ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw.copy(), threshold=ECG_threshold)[1].tolist()
+        pulse = mne.preprocessing.find_ecg_events(raw.copy(), l_freq=8, h_freq=16, ch_name=get_chan_name(subject, 'ecg_chan', raw))[2]
     
-    ica.labels_['eog_scores'] = ica.find_bads_eog(raw, threshold=EOG_threshold)[1].tolist()
+    ica.labels_['eog_scores'] = ica.find_bads_eog(raw.copy(), threshold=EOG_threshold)[1].tolist()
     
     # Fix number of artifactual components
     ica.labels_['ecg'] = ica.labels_['ecg'][:ECG_max]

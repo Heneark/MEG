@@ -68,7 +68,7 @@ delta_mov = .5;  % mouvement acceptable en cm
 if nargin < 1
     DSpath = {};
     fprintf('Select DS directory\n')
-    [Path] = uigetdir(strcat(separator,'dycog',separator,'meditation',separator,'ERC',separator,'Raw data',separator,'SMEG',separator,'meg'), 'Select DS directory');
+    [Path] = uigetdir(strcat(separator,'dycog',separator,'meditation',separator,'ERC',separator,'Raw',separator,'SMEG',separator,'meg'), 'Select DS directory');
     [a, b, c] = fileparts(Path);
     clear Path
     

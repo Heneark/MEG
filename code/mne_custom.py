@@ -15,7 +15,7 @@ from mne.io.base import BaseRaw
 from mne.preprocessing.bads import find_outliers
 from mne.preprocessing.ctps_ import ctps
 from mne.preprocessing.ecg import _get_ecg_channel_index, _make_ecg
-from mne.utils import logger, sum_squared, warn
+from mne.utils import logger, sum_squared, verbose, warn
 import numpy as np
 from scipy.signal import detrend, hilbert
 
@@ -60,8 +60,8 @@ def qrs_custom(sfreq, ecg, custom_args, var=1/3, thresh_value='auto', levels=2.5
     events : array
         Indices of ECG peaks
     """
-    if 'R_sign' in custom_args.keys(): R_sign = custom_args['R_sign']
-    if 'heart_rate' in custom_args.keys(): ideal_rate = custom_args['heart_rate']
+    R_sign = custom_args['R_sign'] if 'R_sign' in custom_args.keys() else 0
+    ideal_rate = custom_args['heart_rate'] if 'heart_rate' in custom_args.keys() else 0
     if 'tstart' in custom_args.keys(): tstart = custom_args['tstart']
     if 'force' in custom_args.keys(): force = custom_args['force']
     
@@ -73,7 +73,7 @@ def qrs_custom(sfreq, ecg, custom_args, var=1/3, thresh_value='auto', levels=2.5
         win_size = int(round((60.0 * sfreq) / 120.0))
     
     if force:
-        print('MOTHERFUCKING BRUTE FORCE')
+        print('BRUTE FORCE DETECTION BASED ON PRIOR HEART RATE KNOWLEDGE. Please check epoching.')
         data = abs(hilbert(ecg))
         data = filter_data(ecg, sfreq, 5, None, None, filter_length,
                            0.5, 0.5, phase='zero-double', fir_window='hann',
@@ -364,6 +364,7 @@ def custom_ecg_epochs(raw, custom_args, ch_name=None, event_id=999, picks=None, 
     return ecg_epochs, pulse
 
 
+@verbose
 def custom_bads_ecg(self, inst, custom_args, ch_name=None, threshold=None, start=None,
                   stop=None, l_freq=8, h_freq=16, method='ctps',
                   reject_by_annotation=True, verbose=None):

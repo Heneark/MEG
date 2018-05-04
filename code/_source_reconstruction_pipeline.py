@@ -20,11 +20,12 @@ task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-# # Last subject preprocessed: 109
+#subjects = subjects[:subjects.index('109')]
+# # Last subject preprocessed: 101
 # # Future subjects list:
-subjects = subjects[subjects.index('109')+1:]
+subjects = subjects[subjects.index('101')+1:]
 
-reject = ['098', '109']#098, 109: no MRI
+reject = ['069', '074', '079', '098', '109']#074, 079, 098, 109: no MRI ; '069': NOISE
 for sub in reject:
     if sub in subjects:
         subjects.remove(sub)
@@ -46,19 +47,19 @@ subjects.sort()
 # # To process all subjects in a loop, uncomment "import matplotlib; matplotlib.use('Agg')" at the top of this script
 from anat import BEM, src_space
 
-for sub in subjects:
-    if op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub)) and not op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')):
-        watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'brain.surf'))
-        BEM(subject=sub, watershed=watershed)
-        src_space(subject=sub)
+#for sub in subjects:
+#    if op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub)) and not op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')):
+#        watershed = not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', 'brain.surf'))
+#        BEM(subject=sub, watershed=watershed)
+#        src_space(subject=sub)
 
 
-subjectlist = ''
-for sub in subjects:
-    if op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')) and not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', sub+'-head-dense.fif')):
-        subjectlist += sub+'\n'
-with open('bash_subject_list.txt', 'w') as fid:
-    fid.write(subjectlist)
+#subjectlist = ''
+#for sub in subjects:
+#    if op.isdir(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem')) and not op.isfile(op.join(os.environ['SUBJECTS_DIR'], sub, 'bem', sub+'-head-dense.fif')):
+#        subjectlist += sub+'\n'
+#with open('bash_subject_list.txt', 'w') as fid:
+#    fid.write(subjectlist)
 
 # TERMINAL COMMAND
 #==============================================================================
@@ -81,6 +82,7 @@ custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM0
               '010': {'R_sign': -1, 'heart_rate': 77, 'T_sign': 1},
               '012': {'R_sign': -1, 'heart_rate': 77, 'T_sign': 1},
               '028': {'R_sign': -1, 'heart_rate': 55},
+              '057': {'R_sign': -1},
               '069': {'R_sign': -1, 'heart_rate': 94}}
 
 for sub in subjects:
@@ -93,14 +95,17 @@ for sub in subjects:
                 custom_args = custom_ecg[sub].copy()
             if 'tstart' in custom_args.keys():
                 custom_args['tstart'] = custom_args['tstart'][state+blk]
-#            try:
-#                raw = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5, check_ica=False, custom_args=custom_args)
-#                events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
-#                check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
-#            except:
-#                with open('run.log', 'a') as fid:
-#                    fid.write(sub+'\t'+state+'\t'+blk+'\t'+'preproc bug\n')
-#                pass
+            try:
+                step='process'
+                raw = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5, check_ica=True, overwrite_ica=True, custom_args=custom_args)
+                step='epoch'
+                events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
+                step='ECG check'
+                check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
+            except:
+                with open('run.log', 'a') as fid:
+                    fid.write(sub+'\t'+state+'\t'+blk+'\t'+'preproc bug\tstep\n')
+                pass
 
 
 #%% COREGISTRATION (https://www.slideshare.net/mne-python/mnepython-coregistration)

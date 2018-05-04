@@ -13,13 +13,13 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 # MANUAL CHECK
 #==============================================================================
-#task='SMEG'; names=['R_ECG_included','R_ECG_excluded','T_ECG_included','T_ECG_excluded']
-#subject='054'; evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
-#state='RS'; block='01'; name=names[0]
-#evoked = mne.read_evokeds(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)))[0]
-#bad_chan = get_chan_name(subject, 'bad', data=evoked)
-#evoked.drop_channels(bad_chan).plot_joint()
-#evoked.plot_sensors()
+task='SMEG'; names=['ECG_included','ECG_excluded']; keys=['R','T']
+subject='069'; evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
+state='FA'; block='02'; name=names[0]; k=keys[0]
+evoked = mne.Evoked(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)), condition = k)
+bad_chan = get_chan_name(subject, 'bad', data=evoked)
+evoked.drop_channels(bad_chan).plot_joint()
+evoked.plot_sensors()
 #
 ## Save ERP
 #for state in ['RS','FA','OM']:
@@ -126,7 +126,7 @@ def ERP(task, subject, state, block_group, name='ECG_included', keys=['R','T'], 
     return noise_cov, evoked_list
 
 
-def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, keys=['R','T'], name='ECG_included', window={'R':(.35,.5), 'T':(.05,.2)}, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, fsaverage=True, baseline_cov=True, mindist=5, method="dSPM"):
+def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, keys=['R','T'], name='ECG_included', window={'R':(.35,.5), 'T':(.1,.25)}, surface='ico4', volume=6.2, bem_spacing='ico4', compute_fwd=True, compute_inv=True, compute_stc=True, fsaverage=True, baseline_cov=True, mindist=5, method="dSPM"):
     """
     If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
     If compute_inv=True, compute and save inverse solution.
