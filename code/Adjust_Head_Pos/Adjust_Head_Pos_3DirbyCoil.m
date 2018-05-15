@@ -12,6 +12,7 @@ function Adjust_Head_Pos_3DirbyCoil(DSpath)
 % 
 % MAJ
 % - 20/02/2018 Oussama Abdoun
+
 %     Les évènements sont lus sur le CTF channel par défaut (cf.
 %     radiobutton correspondant)
 %

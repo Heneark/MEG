@@ -13,13 +13,13 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 # MANUAL CHECK
 #==============================================================================
-task='SMEG'; names=['ECG_included','ECG_excluded']; keys=['R','T']
-subject='069'; evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
-state='FA'; block='02'; name=names[0]; k=keys[0]
-evoked = mne.Evoked(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)), condition = k)
-bad_chan = get_chan_name(subject, 'bad', data=evoked)
-evoked.drop_channels(bad_chan).plot_joint()
-evoked.plot_sensors()
+#task='SMEG'; names=['ECG_included','ECG_excluded']; keys=['R','T']
+#subject='069'; evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
+#state='FA'; block='02'; name=names[0]; k=keys[0]
+#evoked = mne.Evoked(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)), condition = k)
+#bad_chan = get_chan_name(subject, 'bad', data=evoked)
+#evoked.drop_channels(bad_chan).plot_joint()
+#evoked.plot_sensors()
 #
 ## Save ERP
 #for state in ['RS','FA','OM']:

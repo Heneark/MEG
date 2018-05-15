@@ -640,6 +640,11 @@ Noise data are from the day before (same for subjects 068 and 109) => updated cs
 `06`: Huge movement at the end of meditation, impossible to preserve the end (about 10 sec lost, Mean, difference <= 0.0320 cm)
 
 
+074
+---
+Weird oscillatory movement (particularly Nasion)
+
+
 075
 ---
 `01`: couldn't keep coil proportions (MinMax, difference <= 0.0371 cm)
@@ -665,6 +670,11 @@ Noise data are from the day before (same for subjects 068 and 109) => updated cs
 `06+start`: Peak movement at 363 sec (one bad segment)
 
 `06+end`: Preserved the bad segment but couldn't keep coil proportions (MinMax with X_Nasion = 0 and Z_Nazion = 0.32, difference <= 0.0952 cm)
+
+
+105
+---
+`01`: couldn't keep coil proportions (MinMax, difference <= 0.0121 cm)
 
 
 04/05/2018

@@ -20,12 +20,12 @@ task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
 subjects = get_subjlist(task)
 
-#subjects = subjects[:subjects.index('109')]
+subjects = subjects[:subjects.index('109')]
 # # Last subject preprocessed: 101
 # # Future subjects list:
-subjects = subjects[subjects.index('101')+1:]
+#subjects = subjects[subjects.index('101')+1:]
 
-reject = ['069', '074', '079', '098', '109']#074, 079, 098, 109: no MRI ; '069': NOISE
+reject = ['069', '072', '074', '079', '098', '109']#074, 079, 098, 109: no MRI ; '069': NOISE
 for sub in reject:
     if sub in subjects:
         subjects.remove(sub)
@@ -95,21 +95,23 @@ for sub in subjects:
                 custom_args = custom_ecg[sub].copy()
             if 'tstart' in custom_args.keys():
                 custom_args['tstart'] = custom_args['tstart'][state+blk]
-            try:
-                step='process'
-                raw = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5, check_ica=True, overwrite_ica=True, custom_args=custom_args)
-                step='epoch'
-                events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
-                step='ECG check'
-                check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
-            except:
-                with open('run.log', 'a') as fid:
-                    fid.write(sub+'\t'+state+'\t'+blk+'\t'+'preproc bug\tstep\n')
-                pass
+#            try:
+#            step='process'
+#            raw = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5, check_ica=True, overwrite_ica=True, custom_args=custom_args)
+#            step='epoch'
+#            events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
+#            step='ECG check'
+#            check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
+#            except:
+#                with open('run.log', 'a') as fid:
+#                    fid.write(sub+'\t'+state+'\t'+blk+'\t'+'preproc bug\tstep\n')
+#                pass
 
 
 #%% COREGISTRATION (https://www.slideshare.net/mne-python/mnepython-coregistration)
 #==============================================================================
+#import os, mne
+#os.environ["ETS_TOOLKIT"] = "wx"
 #%gui wx
 #mne.gui.coregistration()
 # # on "Save", creates SUBJECTS_DIR/<subject>/bem/<subject>-fiducials.fif
@@ -150,6 +152,40 @@ for sub in subjects:#['004', '010', '054', '071']:#
 #    for key in keys:
 #        for state in states:
 #            fs_average(task, state, name=name, key=key, subjects=subjects, do_morphing=False, overwrite=False)
+
+
+#%% FULL DATASET
+stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate')
+names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
+noise_cov = 'baseline_cov'
+stc_ext = '-lh.stc'
+sfreq = 200
+
+surface = 'ico4'
+data_file = op.join(stc_path, 'fsaverage', 'DATASET-{}-surface_{}-{}Hz.nc'.format(noise_cov, surface, sfreq))
+
+for name in names:
+    for st,state in enumerate(states):
+        print(state, name)
+        for su,sub in enumerate(tqdm(subjects)):
+            stc_file = op.join(stc_path, 'fsaverage', sub, state+'-'+name+'-'+noise_cov+'*'+stc_ext)
+            file = glob.glob(stc_file)[0]
+            data = mne.read_source_estimate(file[:file.index(stc_ext)])
+            if sfreq:
+                data.resample(sfreq)
+            if not st and not su:#and not n 
+                times = data.times
+                vertices = np.concatenate([['lh_' + str(x) for x in data.lh_vertno],['rh_' + str(x) for x in data.rh_vertno]])
+                stc = np.zeros((len(states), len(subjects), data.data.shape[1], data.data.shape[0]))
+                stc = xr.DataArray(stc, dims=['state', 'subject', 'time', 'src'], coords={'state':states, 'subject':subjects, 'time':times, 'src':vertices})
+            stc[st,su] = data.data.T
+            del data
+    if not op.isfile(data_file):
+        mode = 'w'
+    else:
+        mode = 'a'
+    stc.to_netcdf(path=data_file, group=name, mode=mode)
+    del stc
 
 
 #%%

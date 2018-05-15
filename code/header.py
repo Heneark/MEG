@@ -23,7 +23,9 @@ import scipy
 import sklearn# improves performance for e.g. anatomy.py
 from termcolor import colored
 import time
+from tqdm import tqdm
 import warnings
+import xarray as xr
 
 #bugfix with mne.io.read_ctf
 try:
