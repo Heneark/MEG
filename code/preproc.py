@@ -730,7 +730,7 @@ def check_ecg_epoch(task, subject, state, block, raw=None, events=np.array([]), 
         event_file = glob.glob(op.join(epochs_path, 'Events', subject, '{}_{}*.eve'.format(state, block,)))[0]
         events = mne.read_events(event_file)
     
-    ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto')
+    ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None)
     if save:
         plt.savefig(op.join(epochs_path, subject, '{}_{}-ECG.pdf'.format(state, block)), transparent=True)
         plt.close()
