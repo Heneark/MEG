@@ -183,12 +183,12 @@ def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, ke
 
     for k in keys:
         # Load Evokeds if not provided and combine the block_group
-        if load_evoked:
-            evoked[k] = []
-            for block in block_group:
-                evoked[k].append(mne.Evoked(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)), condition = k))
+#        if load_evoked:
+#            evoked_list = []
+#            for block in block_group:
+#                evoked_list.append(mne.Evoked(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)), condition = k))
         
-        evoked[k] = mne.combine_evoked(evoked[k], 'nave')
+        evoked[k] = mne.combine_evoked([mne.Evoked(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)), condition = k) for block in block_group], 'nave')
         evoked[k].crop(*window[k])
     
     k0 = keys[0]
@@ -199,8 +199,8 @@ def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, ke
     # Save files
     fwd_surf_file = op.join(stc_path, '{}_{}-{}-surface_{}-fwd.fif'.format(state, '_'.join(block_group), name, surface))
     fwd_vol_file = op.join(stc_path, '{}_{}-{}-volume_{}-fwd.fif'.format(state, '_'.join(block_group), name, volume))
-    inv_surf_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
-    inv_vol_file = op.join(stc_path, '{}_{}-{}-{}-volume_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume))
+    inv_surf_file = op.join(stc_path, '{}_{}-{}-{}-surface_{}-{}_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window[k]))
+    inv_vol_file = op.join(stc_path, '{}_{}-{}-{}-volume_{}-{}_{}-inv.fif'.format(state, '_'.join(block_group), name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume, *window[k]))
     
     # Do surface SourceEstimate
     if surface:
@@ -224,7 +224,7 @@ def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, ke
         for k in keys:
             # Compute SourceEstimate
             if compute_stc:
-                stc_surf_file = op.join(stc_path, '{}_{}-{}_{}-{}-surface_{}'.format(state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
+                stc_surf_file = op.join(stc_path, '{}_{}-{}_{}-{}-surface_{}-{}_{}'.format(state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window[k]))
                 # Load inverse solution
                 if not inv_surf:
                     inv_surf = read_inverse_operator(inv_surf_file)
@@ -259,17 +259,17 @@ def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, ke
         for k in keys:
             # Compute SourceEstimate
             if compute_stc:
-                stc_vol_file = op.join(stc_path, '{}_{}-{}_{}-{}-volume_{}'.format(state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume))
+                stc_vol_file = op.join(stc_path, '{}_{}-{}_{}-{}-volume_{}-{}_{}'.format(state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume, *window[k]))
                 # Load inverse solution
                 if not inv_vol:
                     inv_vol = read_inverse_operator(inv_vol_file)
                 stc_vol[k] = apply_inverse(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), inv_vol, method=method)
                 stc_vol[k].save(stc_vol_file)
     
-    return stc_surf,stc_vol
+    if compute_stc: return stc_surf,stc_vol
 
 
-def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwrite=False, surface='ico4', baseline_cov=True):
+def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwrite=False, surface='ico4', baseline_cov=True, window=(None,None)):
     """
     If do_morphing=True, morph all SourceEstimates to fsaverage, else expecting morphing to be already performed.
     For each subject, combine all SourceEstimates for the input state using the weighting of mne.evoked.combine_evoked.
@@ -290,8 +290,12 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
     # Define pathes
     stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate')
     evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked')
-    gd_average_file = op.join(stc_path, 'fsaverage', '{}-{}_{}-{}-surface_{}'.format(state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface))
+    gd_average_file = op.join(stc_path, 'fsaverage', 'Grand_average', '{}-{}_{}-{}-surface_{}-{}_{}'.format(state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window))
+    evo_average_file = op.join(evoked_path, 'Grand_average', '{}-{}_{}-ave.fif'.format(state, key, name))
+    os.makedirs(op.dirname(gd_average_file), exist_ok=True)
+    os.makedirs(op.dirname(evo_average_file), exist_ok=True)
     
+    evoked_all = []
     fs_stc_all = []
     if not subjects:
         subjects = get_subjlist(task)
@@ -299,8 +303,8 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
     
     for s,sub in enumerate(tqdm(subjects)):
         # Define files
-        stc_file = op.join(stc_path, sub, '{}_*-{}_{}-{}-surface_{}{}-lh.stc'.format(state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, ('-fsaverage' if not do_morphing else '')))
-        fs_file = op.join(stc_path, 'fsaverage', sub, '{}-{}_{}-{}-surface_{}-{}_to_fs'.format(state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, sub))
+        stc_file = op.join(stc_path, sub, '{}_*-{}_{}-{}-surface_{}-{}_{}{}-lh.stc'.format(state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window, ('-fsaverage' if not do_morphing else '')))
+        fs_file = op.join(stc_path, 'fsaverage', sub, '{}-{}_{}-{}-surface_{}-{}_{}-{}_to_fs'.format(state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window, sub))
         os.makedirs(op.dirname(fs_file), exist_ok=True)
         
         # If the combined SourceEstimate already exists, just load it (if you do not wish to overwrite it)
@@ -328,9 +332,9 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
                 nave_blk = []
                 
                 # To weight, retrieve the number of events (nave) from the Evoked
-                for blk in blocks:
-                    evoked_file = op.join(evoked_path, sub, '{}_{}-{}-ave.fif'.format(state, blk, name))
-                    nave_blk.append(mne.Evoked(evoked_file, condition = key).nave)
+                evoked_list = [mne.Evoked(op.join(evoked_path, sub, '{}_{}-{}-ave.fif'.format(state, blk, name)), condition=key) for blk in blocks]
+                nave_blk.extend([evo.nave for evo in evoked_list])
+                evoked_all.append(mne.combine_evoked(evoked_list, 'nave'))
                 
                 # If there are several blocks corresponding to this single SourceEstimate, then the Evoked have already been combined.
                 # Thus, nave should be reset according to mne.evoked.combine_evoked:
@@ -343,6 +347,10 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
                     nave = nave_blk[0]
                 
                 nave_all.append(nave)
+            else:
+                file = files[0]
+                blk = file[file.index(state+'_'):file.index('-'+key+'_'+name)].split('_')[1]
+                evoked_all.append(mne.Evoked(op.join(evoked_path, sub, '{}_{}-{}-ave.fif'.format(state, blk, name)), condition=key))
         
         stc = stc_all[0].copy()
         if len(files) > 1:
@@ -356,10 +364,12 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
         fs_stc_all.append(stc.copy())
     
     # Grand average
+    evoked = mne.combine_evoked(evoked_all, 'nave')
     fs_stc = fs_stc_all[0].copy()
     data = [s.data for s in fs_stc_all]
     fs_stc.data = np.mean(data, axis=0)
     
+    mne.write_evokeds(evo_average_file, evoked)
     fs_stc.save(gd_average_file)
     print(colored(gd_average_file, 'green'))
     mne.set_log_level(True)

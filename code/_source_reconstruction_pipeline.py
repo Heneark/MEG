@@ -63,7 +63,7 @@ from anat import BEM, src_space
 
 # TERMINAL COMMAND
 #==============================================================================
-# while read p; do mne make_scalp_surfaces -s $p -o; done < bash_subject_list.txt
+# while read p; do mne make_scalp_surfaces -s $p -o --force; done < bash_subject_list.txt
 # # creates SUBJECTS_DIR/<subject>/bem/<subject>-head-dense.fif
 #==============================================================================
 
@@ -123,7 +123,7 @@ for sub in subjects:
 from source_reconstruction import ERP, src_rec, fs_average
 
 names = ['ECG_included', 'ECG_excluded']
-keys = ['R', 'T']
+keys = ['T']#['R', 'T']
 precision = '0.5cm'
 
 for sub in subjects:#['004', '010', '054', '071']:#
@@ -141,51 +141,54 @@ for sub in subjects:#['004', '010', '054', '071']:#
 #        for group in coreg_by_state:
 #            for name in names:
 #                try:
-#                    noise_cov, evoked = ERP(task, sub, state, block_group=group, name=name, keys=keys, rejection={'mag':3500e-15}, baseline={'R':(-.4,-.25), 'T':(-.175,-.1)}, tmin=-.8, tmax=.8)
-#                    stc_surf, stc_vol = src_rec(task, sub, state, evoked=evoked, noise_cov=noise_cov, block_group=group, name=name, compute_fwd=True, compute_inv=True, compute_stc=True)
+#                noise_cov, evoked = ERP(task, sub, state, block_group=group, name=name, keys=keys, rejection={'mag':3500e-15}, baseline={'R':(None,None), 'T':(None,None)}, tmin=-.8, tmax=.8)
+#                src_rec(task, sub, state, block_group=group, name=name, compute_fwd=True, compute_inv=False, compute_stc=False, fsaverage=False, baseline_cov=False)
+#                stc_surf, stc_vol = src_rec(task, sub, state, block_group=group, keys=keys, name=name, compute_fwd=False, baseline_cov=False, window={'T':(-.175,-.075)})
+#                stc_surf, stc_vol = src_rec(task, sub, state, block_group=group, keys=keys, name=name, compute_fwd=False, baseline_cov=False, window={'T':(.1,.2)})
 #                except:
 #                    with open('run.log', 'a') as fid:
 #                        fid.write(sub+'\t'+state+'\t'+str(group)+'\t'+name+'\t'+'source reconstruction bug\n')
 #                    pass
-
-#for name in names:
-#    for key in keys:
-#        for state in states:
-#            fs_average(task, state, name=name, key=key, subjects=subjects, do_morphing=False, overwrite=False)
+windows = [(-.175,-.075), (.1,.2)]
+for name in names:
+    for key in keys:
+        for state in states:
+            for window in windows:
+                fs_average(task, state, name=name, key=key, subjects=subjects, do_morphing=False, overwrite=True, baseline_cov=False, window=window)
 
 
 #%% FULL DATASET
 stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate')
 names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
-noise_cov = 'baseline_cov'
+noise_cov = 'empty_room_cov'
 stc_ext = '-lh.stc'
 sfreq = 200
 
 surface = 'ico4'
 data_file = op.join(stc_path, 'fsaverage', 'DATASET-{}-surface_{}-{}Hz.nc'.format(noise_cov, surface, sfreq))
 
-for name in names:
-    for st,state in enumerate(states):
-        print(state, name)
-        for su,sub in enumerate(tqdm(subjects)):
-            stc_file = op.join(stc_path, 'fsaverage', sub, state+'-'+name+'-'+noise_cov+'*'+stc_ext)
-            file = glob.glob(stc_file)[0]
-            data = mne.read_source_estimate(file[:file.index(stc_ext)])
-            if sfreq:
-                data.resample(sfreq)
-            if not st and not su:#and not n 
-                times = data.times
-                vertices = np.concatenate([['lh_' + str(x) for x in data.lh_vertno],['rh_' + str(x) for x in data.rh_vertno]])
-                stc = np.zeros((len(states), len(subjects), data.data.shape[1], data.data.shape[0]))
-                stc = xr.DataArray(stc, dims=['state', 'subject', 'time', 'src'], coords={'state':states, 'subject':subjects, 'time':times, 'src':vertices})
-            stc[st,su] = data.data.T
-            del data
-    if not op.isfile(data_file):
-        mode = 'w'
-    else:
-        mode = 'a'
-    stc.to_netcdf(path=data_file, group=name, mode=mode)
-    del stc
+#for name in names:
+#    for st,state in enumerate(states):
+#        print(state, name)
+#        for su,sub in enumerate(tqdm(subjects)):
+#            stc_file = op.join(stc_path, 'fsaverage', sub, state+'-'+name+'-'+noise_cov+'*'+stc_ext)
+#            file = glob.glob(stc_file)[0]
+#            data = mne.read_source_estimate(file[:file.index(stc_ext)])
+#            if sfreq:
+#                data.resample(sfreq)
+#            if not st and not su:#and not n 
+#                times = data.times
+#                vertices = np.concatenate([['lh_' + str(x) for x in data.lh_vertno],['rh_' + str(x) for x in data.rh_vertno]])
+#                stc = np.zeros((len(states), len(subjects), data.data.shape[1], data.data.shape[0]))
+#                stc = xr.DataArray(stc, dims=['state', 'subject', 'time', 'src'], coords={'state':states, 'subject':subjects, 'time':times, 'src':vertices})
+#            stc[st,su] = data.data.T
+#            del data
+#    if not op.isfile(data_file):
+#        mode = 'w'
+#    else:
+#        mode = 'a'
+#    stc.to_netcdf(path=data_file, group=name, mode=mode)
+#    del stc
 
 
 #%%
