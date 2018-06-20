@@ -69,7 +69,8 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         ECG_threshold: ECG artifact detection threshold (mne default to 0.25)
         EOG_threshold: EOG artifact detection threshold (mne default to 3.0)
         ECG_max: maximum number of ECG components to exclude, set to None for all ECG components detected (default to 3)
-        EOG_min: minimum number of EOG components to detect and exclude (default to 1)
+        EOG_min: minimum number of EOG components to exclude (default to 1)
+        EOG_max: maximum number of EOG components to exclude (default to 2)
     """
     # Load data
     data_path = op.join(Raw_data_path, task, 'meg')
@@ -174,6 +175,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         low_pass: frequency (in Hz) for low-pass filtering (default to None)
         high_pass: frequency (in Hz) for high-pass filtering (default to 0.5)
         notch: frequency (in Hz) or list of frequencies to notch filter (set to np.array([]) for no notch filtering)
+        update_HPI:
     """
     # Load data
     data_path = op.join(Raw_data_path, task, 'meg')

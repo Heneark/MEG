@@ -9,6 +9,27 @@ title: Preprocessing notebook
 
 ECG components: epochs centered around R (`qrs_detector`), P around -200 ms, T around +300 ms
 
+Low pulse (091: 50 bpm <=> 1.2 s heartbeat window)
+  * R events: 
+  * T events:
+        -400 -- +800 ms from R peak to P wave
+        -550 -- +600 ms from P wave to before the next one
+
+High pulse (050/069: 96 bpm <=> 0.625 s heartbeat window)
+  * R events: 
+  * T events:
+        -250 -- +400 ms from R peak to P wave
+        -400 -- +300 ms from P wave to before the next one
+
+**T epoch window**:
+    -550 ms takes the whole cardiac artefact
+    -175 ms never takes R peak
+    +275 ms never takes the following cardiac artefact
+
+**R epoch window**:
+    -350 ms never takes the previous cardiac artefact
+    +425 ms never takes the following cardiac artefact
+
 
 Subject 002
 -----------

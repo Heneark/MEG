@@ -149,46 +149,92 @@ for sub in subjects:#['004', '010', '054', '071']:#
 #                    with open('run.log', 'a') as fid:
 #                        fid.write(sub+'\t'+state+'\t'+str(group)+'\t'+name+'\t'+'source reconstruction bug\n')
 #                    pass
-windows = [(-.175,-.075), (.1,.2)]
+#windows = [(-.175,-.075), (.1,.2)]
+#for name in names:
+#    for key in keys:
+#        for state in states:
+#            for window in windows:
+#                fs_average(task, state, name=name, key=key, subjects=subjects, do_morphing=False, overwrite=True, baseline_cov=False, window=window)
+
+
+#%% FULL EVOKED DATASET
+verb = mne.set_log_level(False, return_old_level=True)
+
+evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked')
+names = ['ECG_included', 'ECG_excluded']
+keys = ['R', 'T']
+sfreq = 200
+data_file = op.join(evoked_path, 'DATASET-{}Hz.nc'.format(sfreq))
 for name in names:
-    for key in keys:
-        for state in states:
-            for window in windows:
-                fs_average(task, state, name=name, key=key, subjects=subjects, do_morphing=False, overwrite=True, baseline_cov=False, window=window)
+    for k in keys:
+        kname = k+'_'+name
+        for st,state in enumerate(states):
+            for su,sub in enumerate(tqdm(subjects)):
+                evo_list = []
+                for b,blk in enumerate(get_blocks(sub, task=task, state=state)):
+                    evo = mne.Evoked(op.join(evoked_path, sub, '{}_{}-{}-ave.fif'.format(state, blk, name)), condition = k)
+                    if sfreq:
+                        evo.resample(sfreq)
+                    if not st and not su and not b:
+                        times = evo.times
+                        channels = [ch.split('-')[0] for c,ch in enumerate(evo.ch_names) if c in mne.pick_types(evo.info, ref_meg=False)]
+                        evoked = xr.DataArray(np.zeros((len(states), len(subjects), times.size, len(channels))), dims=['state', 'subject', 'time', 'sensor'], coords={'state':states, 'subject':subjects, 'time':times, 'sensor':channels})
+                    
+                    evo.info['bads'] = list(set(evo.info['bads']) | set(get_chan_name(sub, 'bad', evo)))
+                    evo.interpolate_bads(verbose='ERROR')
+                    evo_list.append(evo)
+                
+                evo = mne.combine_evoked(evo_list, 'nave')
+                evoked[st,su] = evo.data[mne.pick_types(evo.info, ref_meg=False)].T
+        
+        if not op.isfile(data_file):
+            mode = 'w'
+        else:
+            mode = 'a'
+        stc.to_netcdf(path=data_file, group=kname, mode=mode)
+        
+        del evoked
+
+mne.set_log_level(verb)
 
 
 #%% FULL DATASET
+verb = mne.set_log_level(False, return_old_level=True)
+
 stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate')
-names = ['R_ECG_included', 'R_ECG_excluded', 'T_ECG_included', 'T_ECG_excluded']
+names = ['T_ECG_included', 'T_ECG_excluded']#'R_ECG_included', 'R_ECG_excluded', 
 noise_cov = 'empty_room_cov'
 stc_ext = '-lh.stc'
 sfreq = 200
+win = (-.175,-.075)#(.1,.2)
 
 surface = 'ico4'
-data_file = op.join(stc_path, 'fsaverage', 'DATASET-{}-surface_{}-{}Hz.nc'.format(noise_cov, surface, sfreq))
+#for w in [(-.175,-.075),(.1,.2)]:
+#    data_file = op.join(stc_path, 'fsaverage', 'DATASET-{}-surface_{}-{}_{}-{}Hz.nc'.format(noise_cov, surface, *w, sfreq))
+#    for name in names:
+#        for st,state in enumerate(states):
+#            print(state, name)
+#            for su,sub in enumerate(tqdm(subjects)):
+#                stc_file = op.join(stc_path, 'fsaverage', sub, '{}-{}-{}*{}_{}*{}'.format(state,name,noise_cov,*w,stc_ext))
+#                file = glob.glob(stc_file)[0]
+#                data = mne.read_source_estimate(file[:file.index(stc_ext)])
+#                if sfreq:
+#                    data.resample(sfreq)
+#                if not st and not su:#and not n 
+#                    times = data.times
+#                    vertices = np.concatenate([['lh_' + str(x) for x in data.lh_vertno],['rh_' + str(x) for x in data.rh_vertno]])
+#                    stc = np.zeros((len(states), len(subjects), *data.data.T.shape))
+#                    stc = xr.DataArray(stc, dims=['state', 'subject', 'time', 'src'], coords={'state':states, 'subject':subjects, 'time':times, 'src':vertices})
+#                stc[st,su] = data.data.T
+#                del data
+#        if not op.isfile(data_file):
+#            mode = 'w'
+#        else:
+#            mode = 'a'
+#        stc.to_netcdf(path=data_file, group=name, mode=mode)
+#        del stc
 
-#for name in names:
-#    for st,state in enumerate(states):
-#        print(state, name)
-#        for su,sub in enumerate(tqdm(subjects)):
-#            stc_file = op.join(stc_path, 'fsaverage', sub, state+'-'+name+'-'+noise_cov+'*'+stc_ext)
-#            file = glob.glob(stc_file)[0]
-#            data = mne.read_source_estimate(file[:file.index(stc_ext)])
-#            if sfreq:
-#                data.resample(sfreq)
-#            if not st and not su:#and not n 
-#                times = data.times
-#                vertices = np.concatenate([['lh_' + str(x) for x in data.lh_vertno],['rh_' + str(x) for x in data.rh_vertno]])
-#                stc = np.zeros((len(states), len(subjects), data.data.shape[1], data.data.shape[0]))
-#                stc = xr.DataArray(stc, dims=['state', 'subject', 'time', 'src'], coords={'state':states, 'subject':subjects, 'time':times, 'src':vertices})
-#            stc[st,su] = data.data.T
-#            del data
-#    if not op.isfile(data_file):
-#        mode = 'w'
-#    else:
-#        mode = 'a'
-#    stc.to_netcdf(path=data_file, group=name, mode=mode)
-#    del stc
+mne.set_log_level(verb)
 
 
 #%%

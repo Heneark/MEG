@@ -43,15 +43,15 @@ def BEM(subject, spacing:"'ico3', 'ico4', 'ico5'"='ico4', watershed=True):
     #mne.viz.plot_bem(subject=subject, src=None, orientation='coronal')
 
 
-def src_space(subject, spacing:"'oct5', 'ico4', 'oct6', 'ico5'"='ico4', pos=6.2):
+def src_space(subject, spacing:"'oct5', 'ico4', 'oct6', 'ico5'"='ico4', pos=6.2, mixed=False):
     """
     Parameters:
-        spacing: 'oct5', 'ico4' (default), 'oct6' (default of mne.setup_source_space), 'ico5', or 'all' (no subdivision of the source space).
-        pos: distance (in mm) between sources (arranged as a grid).
+        spacing: for surface source space, either 'oct5', 'ico4' (default), 'oct6' (default of mne.setup_source_space), 'ico5', or 'all' (no subdivision of the source space).
+        pos: for volumr source space, distance (in mm) between sources (arranged as a grid).
     Output:
         SUBJECTS_DIR/<subject>/src/<subject>_<spacing>_surface-src.fif
         SUBJECTS_DIR/<subject>/src/<subject>_<pos>_volume-src.fif
-        SUBJECTS_DIR/<subject>/src/<subject>_<spacing>_<pos>_mixed-src.fif
+        SUBJECTS_DIR/<subject>/src/<subject>_<spacing>_<pos>_mixed-src.fif (if mixed = True)
     
     MNE naming conventions: all source space files should end with -src.fif or -src.fif.gz.
     """
@@ -73,7 +73,8 @@ def src_space(subject, spacing:"'oct5', 'ico4', 'oct6', 'ico5'"='ico4', pos=6.2)
     src_vol.subject = subject
     mne.write_source_spaces(op.join(output_path, '{}_{}_volume-src.fif'.format(subject, pos)), src_vol, overwrite=True)
     
+    if mixed:
     # Mixed source space
-#    src_mix = src_surf + src_vol
-#    src_mix.subject = subject
-#    mne.write_source_spaces(op.join(output_path, '{}_{}_{}_mixed-src.fif'.format(subject, spacing, pos)), src_mix, overwrite=True)
+        src_mix = src_surf + src_vol
+        src_mix.subject = subject
+        mne.write_source_spaces(op.join(output_path, '{}_{}_{}_mixed-src.fif'.format(subject, spacing, pos)), src_mix, overwrite=True)
