@@ -88,7 +88,7 @@ def ERP(task, subject, state, block_group, name='ECG_included', cov_keys=['R','T
             #Epoch
             epochs = mne.Epochs(raw, events, event_id, *window[k], baseline=baseline[k], reject=rejection, reject_by_annotation=True, preload=True)
             data_cov_file = op.join(cov_path, '{}_{}_{}-{}_{}-data-cov.fif'.format(subject, state, '_'.join(block_group), k, name))
-            mne.write_cov(data_cov_file, mne.compute_covariance(epochs, True, *data_win[k], method='auto', n_jobs=4))
+            mne.write_cov(data_cov_file, mne.compute_covariance(epochs, True, *data_win[k], method='empirical', n_jobs=4))
             
             if k in cov_keys: epochs_list.append(epochs)
             
@@ -111,19 +111,19 @@ def ERP(task, subject, state, block_group, name='ECG_included', cov_keys=['R','T
         with open(drop_log, 'a') as fid:
             fid.write('{} {} epochs dropped\t{}\n'.format(evoked_file.split('/')[-2:], len(np.array(epochs.drop_log)[np.where(epochs.drop_log)]), rejection))
         
-        for k in event_id.keys():
-            # Plot ERP time course
-            evoked[k].plot_joint(title = 'Subject {} - {} {}\n{} {}'.format(subject, state, block, k, name))
-            plt.savefig(op.join(evoked_path, '{}_{}_{}-{}_{}-ERP.pdf'.format(subject, state, block, k, name)), transparent=True)
-            plt.close()
-            
-            # Same without bad channels
-            bad_chan = list(set(evoked[k].info['bads']) | set(get_chan_name(subject, 'bad', evoked[k])))
-            if bad_chan:
-                evo = mne.pick_channels_evoked(evoked[k], exclude=bad_chan)
-                evo.plot_joint(title = 'Subject {} - {} {}\n{} {}\n{} channels rejected'.format(subject, state, block, k, name, len(bad_chan)))
-                plt.savefig(op.join(evoked_path, '{}_{}_{}-{}_{}-ERP_rejected.pdf'.format(subject, state, block, k, name)), transparent=True)
-                plt.close()
+#        for k in event_id.keys():
+#            # Plot ERP time course
+#            evoked[k].plot_joint(title = 'Subject {} - {} {}\n{} {}'.format(subject, state, block, k, name))
+#            plt.savefig(op.join(evoked_path, '{}_{}_{}-{}_{}-ERP.pdf'.format(subject, state, block, k, name)), transparent=True)
+#            plt.close()
+#            
+#            # Same without bad channels
+#            bad_chan = list(set(evoked[k].info['bads']) | set(get_chan_name(subject, 'bad', evoked[k])))
+#            if bad_chan:
+#                evo = mne.pick_channels_evoked(evoked[k], exclude=bad_chan)
+#                evo.plot_joint(title = 'Subject {} - {} {}\n{} {}\n{} channels rejected'.format(subject, state, block, k, name, len(bad_chan)))
+#                plt.savefig(op.join(evoked_path, '{}_{}_{}-{}_{}-ERP_rejected.pdf'.format(subject, state, block, k, name)), transparent=True)
+#                plt.close()
     
     # Compute and save noise covariance
     all_epochs = mne.concatenate_epochs(epochs_list)
@@ -135,7 +135,7 @@ def ERP(task, subject, state, block_group, name='ECG_included', cov_keys=['R','T
     return noise_cov, evoked_list
 
 
-def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, keys=['R','T'], name='ECG_included', window={'R':(.35,.5), 'T':(.1,.25)}, surface='ico4', volume=6.2, bem_spacing='ico4', minimu_norm=True, compute_stc=True, fsaverage=True, baseline_cov=True, mindist=5, method:"'MNE', 'dSPM', 'sLORETA', 'eLORETA'"="dSPM"):
+def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, keys=['R','T'], name='ECG_included', window={'R':(.35,.5), 'T':(.1,.25)}, surface='ico4', volume=6.2, bem_spacing='ico4', baseline_cov=True, mindist=5, method:"'beamformer', 'MNE', 'dSPM', 'sLORETA', 'eLORETA'"="dSPM"):
     """
     If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
     If compute_inv=True, compute and save inverse solution.
@@ -188,9 +188,9 @@ def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, ke
     
     for k in keys:
         # Load Evokeds if not provided and combine the block_group
-        if load_evoked:
-            evoked[k] = mne.combine_evoked([mne.Evoked(op.join(evoked_path, '{}_{}_{}-{}-ave.fif'.format(subject, state, block, name)), condition = k) for block in block_group], 'nave')
-            evoked[k].crop(*window[k])
+        if load_evoked: evoked[k] = [mne.Evoked(op.join(evoked_path, '{}_{}_{}-{}-ave.fif'.format(subject, state, block, name)), condition = k) for block in block_group]
+        evoked[k] = mne.combine_evoked(evoked[k], 'nave')
+        evoked[k].crop(*window[k])
     
     k0 = keys[0]
     
@@ -225,7 +225,7 @@ def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, ke
     # Do volume SourceEstimate
     if volume:
         # Compute forward solution
-            fwd_vol = mne.make_forward_solution(evoked[k0].info, trans=trans_file, src=src_vol, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
+        fwd_vol = mne.make_forward_solution(evoked[k0].info, trans=trans_file, src=src_vol, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
         
         # Compute inverse solution
         if method is 'beamformer':
