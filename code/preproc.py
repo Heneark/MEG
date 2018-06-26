@@ -10,7 +10,7 @@ from header import *
 from mne_custom import *
 from scipy.signal import detrend, hilbert
 #==============================================================================
-warnings.filterwarnings("ignore",category=DeprecationWarning)
+#warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 # MANUAL EXECUTION
 #==============================================================================
@@ -50,7 +50,7 @@ def Pre(x):
 # # => exploit the attribute labels_
 # # # /!\ Numpy arrays are not supported --> convert to type list with .tolist()
 
-def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, ECG_threshold=0.25, ECG_max=3, EOG_threshold=3, EOG_min=1, EOG_max=2, custom_args=dict()):
+def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, ecg_ica=True, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, ECG_threshold=0.25, ECG_max=3, EOG_threshold=3, EOG_min=1, EOG_max=2, custom_args=dict()):
     """
     Fit ICA on raw MEG data and return ICA object.
     If save, save ICA, save ECG and EOG artifact scores plots, and write log (default to True).
@@ -109,6 +109,17 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         ica.exclude = []
         ica.drop_inds_ = []
         ica.labels_ = dict()
+        
+        if ecg_ica:
+            ecg_ica=ica.copy()
+                if custom_args:
+                    epo, pulse = custom_ecg_epochs(raw.copy(), custom_args)
+                else:
+                    epo = create_ecg_epochs(raw.copy())
+            ecg_ica.fit(epo, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
+            ecg_ica.labels_['rejection'] = ica_rejection
+            ecg_ica.labels_['drop_inds_'] = ecg_ica.drop_inds_
+        
         ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
         ica.labels_['rejection'] = ica_rejection
         ica.labels_['drop_inds_'] = ica.drop_inds_
