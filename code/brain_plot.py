@@ -24,7 +24,7 @@ window = 'baseline'
 
 stat_path = op.join(Analysis_path, task, 'meg', 'Stats', window)
 stat_file = op.join(stat_path, '{}-{}-surface_{}-{}Hz-{}.nc'.format(name, noise_cov, surface, sfreq, window))
-test_key = 'RS'
+test_key = 'RS_t_avg'
 p_thresh = 0.05
 
 
@@ -32,19 +32,23 @@ p_thresh = 0.05
 stats = xr.open_dataarray(stat_file, test_key)
 stats.load()
 
-t_clu_size = np.unique(np.where(stats.loc['p_val'].values < p_thresh)[1], return_counts=True)
-t = t_clu_size[0][t_clu_size[1].argmax()] if t_clu_size[0].size else 0
-#t=19
-
-time = stats.time.values[t]
-data = np.where(stats.loc['p_val', :, time].values < p_thresh, stats.loc['T_stat', :, time].values, -np.inf)
-cmax = np.max(np.abs(stats.loc['T_stat', :, time].values))
+#t_clu_size = np.unique(np.where(stats.loc['p_val'].values < p_thresh)[1], return_counts=True)
+#t = t_clu_size[0][t_clu_size[1].argmax()] if t_clu_size[0].size else 0
+##t=19
+#
+#time = stats.time.values[t]
+#data = np.where(stats.loc['p_val', :, time].values < p_thresh, stats.loc['T_stat', :, time].values, -np.inf)
+#cmax = np.max(np.abs(stats.loc['T_stat', :, time].values))
+#clim = (-cmax, cmax)
+time=0
+data = np.where(stats.loc['p_val'].values < p_thresh, stats.loc['T_stat'].values, -np.inf)
+cmax = np.max(np.abs(stats.loc['T_stat'].values))
 clim = (-cmax, cmax)
 
 
 #%% PLOT HEMISPHERES SEPARATELY
 brains = dict()
-#os.makedirs(op.splitext(stat_file)[0], exist_ok=True)
+os.makedirs(op.splitext(stat_file)[0], exist_ok=True)
 #for h,hemi in enumerate(stats.hemisphere.values):
 #    b_obj = BrainObj('inflated', translucent=False, hemisphere=hemi, sulcus=True)
 #    b_obj.add_activation(data=data[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='cool', vmin=clim[0], vmax=clim[1], under=None)
@@ -63,8 +67,11 @@ brains = dict()
 #%% SHOW WHOLE BRAIN
 b_obj = BrainObj('inflated', translucent=False, hemisphere='both', sulcus=True)
 for h,hemi in enumerate(stats.hemisphere.values):
-    b_obj.add_activation(data=data[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='cool', vmin=clim[0], vmax=clim[1], under=None)
-#    b_obj.add_activation(data=stats.loc['T_stat', :, time].values[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='cool', vmin=clim[0], vmax=clim[1], under=None)
+    if np.isfinite(data).any():
+        b_obj.add_activation(data=data[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='cool', vmin=clim[0], vmax=clim[1], under=None)
+    else:
+        b_obj.add_activation(data=stats.loc['T_stat'].values[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='cool', vmin=clim[0], vmax=clim[1], under=None)
+#        b_obj.add_activation(data=stats.loc['T_stat', :, time].values[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='cool', vmin=clim[0], vmax=clim[1], under=None)
 hemi = 'both'
 brains[hemi] = Brain(brain_obj=b_obj, bgcolor=None)
 
