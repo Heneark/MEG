@@ -250,9 +250,9 @@ def custom_ecg_epochs(raw, custom_args, ch_name=None, event_id=999, picks=None, 
                       reject_by_annotation=True, verbose=None):
     """
     Copy-paste from mne.preprocessing.ecg, with a few modifications:
-        Use qrs_custom() instead of qrs_detector()
-        Return pulse
-    
+        Uses qrs_custom() instead of qrs_detector()
+        
+        Returns pulse
     
     Conveniently generate epochs around ECG artifact events.
 

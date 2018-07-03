@@ -520,7 +520,7 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
         <state>-<name>-*-lh.stc' (grand average left hemisphere SourceEstimate)
         <state>-<name>-*-rh.stc' (likewise for right hemisphere)
     """
-    mne.set_log_level(False) # Don't pollute the terminal each time a file is loaded.
+    verb = mne.set_log_level(False, return_old_level=True) # Don't pollute the terminal each time a file is loaded.
     
     # Define pathes
     stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate')
@@ -538,7 +538,7 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
     
     for s,sub in enumerate(tqdm(subjects)):
         # Define files
-        stc_file = op.join(stc_path, sub, '{}_{}_*-{}_{}-{}-surface_{}-{}_{}{}-lh.stc'.format(sub, state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window, ('-fsaverage' if not do_morphing else '')))
+        stc_file = op.join(stc_path, sub, '{}_{}_*-{}_{}-{}-surface_{}-{}_{}{}*-lh.stc'.format(sub, state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window, ('-fsaverage' if not do_morphing else '')))
         fs_file = op.join(stc_path, 'fsaverage', sub, '{}_{}-{}_{}-{}-surface_{}-{}_{}-{}_to_fs'.format(sub, state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window, sub))
         os.makedirs(op.dirname(fs_file), exist_ok=True)
         
@@ -557,7 +557,7 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
             
             # Morph to fsaverage
             if do_morphing:
-                stc_all.append(mne.morph_data(subject, 'fsaverage', stc, n_jobs=4, verbose=True))
+                stc_all.append(mne.morph_data(sub, 'fsaverage', stc, n_jobs=4))#, verbose=True))
             else:
                 stc_all.append(stc.copy())
             
@@ -607,4 +607,4 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
     mne.write_evokeds(evo_average_file, evoked)
     fs_stc.save(gd_average_file)
     print(colored(gd_average_file, 'green'))
-    mne.set_log_level(True)
+    mne.set_log_level(verb)

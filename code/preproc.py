@@ -10,7 +10,7 @@ from header import *
 from mne_custom import *
 from scipy.signal import detrend, hilbert
 #==============================================================================
-#warnings.filterwarnings("ignore",category=DeprecationWarning)
+warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 # MANUAL EXECUTION
 #==============================================================================
@@ -55,22 +55,40 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, ecg
     Fit ICA on raw MEG data and return ICA object.
     If save, save ICA, save ECG and EOG artifact scores plots, and write log (default to True).
     If fit_ica, fit ICA even if there is already an ICA file (default to False).
-    Output:
-        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-ica.fif'
-        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_ecg.svg'
-        'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_eog.svg'
-    Log:
-        'Analyses/<task>/meg/ICA/ICA_log.tsv'
-    Parameters (see mne.preprocessing.ICA):
-        raw: raw data to fit ICA on. If None (default), will be loaded according to previous parameters.
-        n_components: number of components used for ICA decomposition
-        method: the ICA method to use
-        ica_rejection: epoch rejection threshold (default to 4000 fT for magnetometers)
-        ECG_threshold: ECG artifact detection threshold (mne default to 0.25)
-        EOG_threshold: EOG artifact detection threshold (mne default to 3.0)
-        ECG_max: maximum number of ECG components to exclude, set to None for all ECG components detected (default to 3)
-        EOG_min: minimum number of EOG components to exclude (default to 1)
-        EOG_max: maximum number of EOG components to exclude (default to 2)
+    
+    Output
+    ------
+    'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-ica.fif'
+    
+    'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_ecg.svg'
+    
+    'Analyses/<task>/meg/ICA/<subject>/<state>_<block>-<n>_components-scores_eog.svg'
+    
+    Log
+    ---
+    'Analyses/<task>/meg/ICA/ICA_log.tsv'
+    
+    Parameters (see mne.preprocessing.ICA)
+    ----------
+    raw : raw data to fit ICA on
+        If None (default), will be loaded according to previous parameters.
+    n_components : 
+        number of components used for ICA decomposition
+    method : 
+        the ICA method to use
+    ica_rejection : 
+        epoch rejection threshold (default to 4000 fT for magnetometers)
+    ECG_threshold : 
+        ECG artifact detection threshold (mne default to 0.25)
+    EOG_threshold : 
+        EOG artifact detection threshold (mne default to 3.0)
+    ECG_max : 
+        maximum number of ECG components to exclude, set to None for all ECG components detected (default to 3)
+    EOG_min : 
+        minimum number of EOG components to exclude (default to 1)
+    EOG_max : 
+        maximum number of EOG components to exclude (default to 2)
+    
     """
     # Load data
     data_path = op.join(Raw_data_path, task, 'meg')
@@ -112,17 +130,24 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, ecg
         
         if ecg_ica:
             ecg_ica=ica.copy()
-                if custom_args:
-                    epo, pulse = custom_ecg_epochs(raw.copy(), custom_args)
-                else:
-                    epo = create_ecg_epochs(raw.copy())
-            ecg_ica.fit(epo, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
+            if custom_args:
+                ecg_epo, pulse = custom_ecg_epochs(raw.copy(), custom_args, tmin=-0.1, tmax=0.1)
+            else:
+                ecg_epo = create_ecg_epochs(raw.copy(), tmin=-0.1, tmax=0.1)
+            ecg_ica.fit(ecg_epo, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
             ecg_ica.labels_['rejection'] = ica_rejection
             ecg_ica.labels_['drop_inds_'] = ecg_ica.drop_inds_
-        
-        ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
-        ica.labels_['rejection'] = ica_rejection
-        ica.labels_['drop_inds_'] = ica.drop_inds_
+            
+            if custom_args:
+                _, scores, pulse = custom_bads_ecg(ecg_ica, ecg_epo, custom_args, threshold=ECG_threshold)
+                ecg_ica.labels_['ecg_scores'] = scores.tolist()
+            else:
+                ecg_ica.labels_['ecg_scores'] = ecg_ica.find_bads_ecg(ecg_epo, threshold=ECG_threshold)[1].tolist()
+                pulse = mne.preprocessing.find_ecg_events(raw.copy(), l_freq=8, h_freq=16, ch_name=get_chan_name(subject, 'ecg_chan', raw))[2]
+            
+            # Fix number of artifactual components
+            ecg_ica.labels_['ecg'] = ica.labels_['ecg'][:ECG_max]
+    
     else:
         ica = read_ica(ICA_file)
     
