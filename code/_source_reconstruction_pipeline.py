@@ -141,8 +141,8 @@ for sub in subjects:#['004', '010', '054', '071']:#
 #        for group in coreg_by_state:
 #            for name in names:
 ##                try:
-#                noise_cov, evoked = ERP(task, sub, state, block_group=group, name=name, cov_keys=['R'], rejection={'mag':3500e-15}, baseline={'R':(None,None), 'T':(None,None)})#, tmin=-.8, tmax=.8)
-#                src_rec15(task, sub, state, block_group=group, evoked=evoked, name=name, window={'R':(.35,.425), 'T':(.1,.25)}, volume=0, baseline_cov=False, method='beamformer')
+#                noise_cov, evoked = ERP(task, sub, state, block_group=group, name=name, cov_keys=['R'], rejection={'mag':3500e-15}, baseline={'R':None, 'T':None}, window={'R':(-.35,.425), 'T':(-.175,.35)})#, tmin=-.8, tmax=.8)
+#                src_rec15(task, sub, state, block_group=group, evoked=evoked, name=name, window={'R':(.35,.425), 'T':(.1,.35)}, volume=0, baseline_cov=False, method='beamformer')
 #                stc_surf, stc_vol = src_rec(task, sub, state, block_group=group, keys=keys, name=name, compute_fwd=False, baseline_cov=False, window={'T':(-.175,-.075)})
 #                stc_surf, stc_vol = src_rec(task, sub, state, block_group=group, keys=keys, name=name, compute_fwd=False, baseline_cov=False, window={'T':(.1,.2)})
 #                except:
@@ -150,7 +150,7 @@ for sub in subjects:#['004', '010', '054', '071']:#
 #                        fid.write(sub+'\t'+state+'\t'+str(group)+'\t'+name+'\t'+'source reconstruction bug\n')
 #                    pass
 
-#windows = window={'R':(.35,.425), 'T':(.1,.25)}
+#windows = {'R':(.35,.425), 'T':(.1,.35)}
 #for name in names:
 #    for key in keys:
 #        for state in states:
@@ -164,8 +164,8 @@ verb = mne.set_log_level(False, return_old_level=True)
 evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked')
 names = ['ECG_included', 'ECG_excluded']
 keys = ['R', 'T']
-sfreq = 200
-data_file = op.join(evoked_path, 'DATASET-{}Hz.nc'.format(sfreq))
+sfreq = None#200
+data_file = op.join(evoked_path, 'DATASET-{}Hz.nc'.format(sfreq if sfreq else 1200))
 #for name in names:
 #    for k in keys:
 #        kname = k+'_'+name
@@ -178,8 +178,11 @@ data_file = op.join(evoked_path, 'DATASET-{}Hz.nc'.format(sfreq))
 #                        evo.resample(sfreq)
 #                    if not st and not su and not b:
 #                        times = evo.times
+##                        chs = evo.copy().pick_types(ref_meg=False).info['chs']
+##                        for ch in chs: ch['ch_name'] = ch['ch_name'].split('-')[0]
 #                        channels = [ch.split('-')[0] for c,ch in enumerate(evo.ch_names) if c in mne.pick_types(evo.info, ref_meg=False)]
-#                        evoked = xr.DataArray(np.zeros((len(states), len(subjects), times.size, len(channels))), dims=['state', 'subject', 'time', 'sensor'], coords={'state':states, 'subject':subjects, 'time':times, 'sensor':channels})
+#                        evoked = xr.DataArray(np.zeros((len(states), len(subjects), times.size, len(channels))), dims=['state', 'subject', 'time', 'sensor'], coords={'state':states, 'subject':subjects, 'time':times, 'sensor':channels})#chs})
+##                        evoked.attrs['chs'] = chs
 #                    
 #                    evo.info['bads'] = list(set(evo.info['bads']) | set(get_chan_name(sub, 'bad', evo)))
 #                    evo.interpolate_bads(verbose='ERROR')
@@ -188,11 +191,7 @@ data_file = op.join(evoked_path, 'DATASET-{}Hz.nc'.format(sfreq))
 #                evo = mne.combine_evoked(evo_list, 'nave')
 #                evoked[st,su] = evo.data[mne.pick_types(evo.info, ref_meg=False)].T
 #        
-#        if not op.isfile(data_file):
-#            mode = 'w'
-#        else:
-#            mode = 'a'
-#        evoked.to_netcdf(path=data_file, group=kname, mode=mode)
+#        evoked.to_netcdf(path=data_file, group=kname, mode=mode if op.isfile(data_file) else 'w')
 #        
 #        del evoked
 
@@ -203,15 +202,16 @@ mne.set_log_level(verb)
 verb = mne.set_log_level(False, return_old_level=True)
 
 stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate')
-#names = ['T_ECG_included', 'T_ECG_excluded']#'R_ECG_included', 'R_ECG_excluded', 
+names = ['ECG_excluded', 'ECG_included']
+keys = ['T', 'R']
 noise_cov = 'empty_room_cov'
 stc_ext = '-lh.stc'
 sfreq = 200
 win = (-.175,-.075)#(.1,.2)
 
 surface = 'ico4'
-win = {'R':(.35,.425), 'T':(.1,.25)}
-data_file = op.join(stc_path, 'fsaverage', 'DATASET-{}-surface_{}-{}Hz.nc'.format(noise_cov, surface, sfreq))#, *win[]
+win = {'R':(.35,.425), 'T':(.1,.35)}
+data_file = op.join(stc_path, 'fsaverage', 'DATASET-{}-surface_{}-{}Hz-beamformer.nc'.format(noise_cov, surface, sfreq))#, *win[]
 for name in names:
     for k in keys:
         kname = k+'_'+name

@@ -20,11 +20,11 @@ name = names[1]
 noise_cov = 'empty_room_cov'
 surface = 'ico4'
 sfreq = 200
-window = '0.1_0.245'
+window = '0.1_0.345'
 
 stat_path = op.join(Analysis_path, task, 'meg', 'Stats', window)
 stat_file = op.join(stat_path, '{}-{}-surface_{}-{}Hz-beamformer.nc'.format(name, noise_cov, surface, sfreq))#, window))
-test_key = 'RS_vs_OM+E'
+test_key = 'RS_vs_OM'
 p_thresh = 0.05
 
 
@@ -68,10 +68,10 @@ os.makedirs(op.splitext(stat_file)[0], exist_ok=True)
 b_obj = BrainObj('inflated', translucent=False, hemisphere='both', sulcus=True)
 for h,hemi in enumerate(stats.hemisphere.values):
     if np.isfinite(data).any():
-        b_obj.add_activation(data=data[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='mne', vmin=clim[0], vmax=clim[1], under=None)
+        b_obj.add_activation(data=data[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='RdBu_r', vmin=clim[0], vmax=clim[1], under=None)
     else:
         b_obj.add_activation(data=stats.loc['T_stat'].values[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='spring', vmin=clim[0], vmax=clim[1], under=None)
-#    b_obj.add_activation(data=stats.loc['T_stat', :, time].values[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='spring', vmin=clim[0], vmax=clim[1], under=None)
+#    b_obj.add_activation(data=stats.loc['T_stat', :, time].values[h], vertices=stats.src.values, hemisphere=hemi, clim=clim, hide_under=clim[0], cmap='cool', vmin=clim[0], vmax=clim[1], under=None)
 hemi = 'both'
 brains[hemi] = Brain(brain_obj=b_obj, bgcolor=None)
 

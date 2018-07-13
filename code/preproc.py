@@ -147,6 +147,10 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, ecg
             
             # Fix number of artifactual components
             ecg_ica.labels_['ecg'] = ica.labels_['ecg'][:ECG_max]
+        
+        ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
+        ica.labels_['rejection'] = ica_rejection
+        ica.labels_['drop_inds_'] = ica.drop_inds_
     
     else:
         ica = read_ica(ICA_file)
@@ -582,6 +586,63 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     mne.write_events(event_file, events)
     
     return events, event_id
+
+
+def ECG_ICA(task, subject, state, block, raw=None, events=None, event_id=None, rejection={'mag': 7000e-15}, Rwin=-.1, Twin=.1):
+    """
+    
+    """
+    # Load data
+    if not raw:
+        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block))
+        raw = mne.io.read_raw_fif(raw_file, preload=True)
+    
+    rawforica = raw.copy()
+    rawforica.filter(l_freq=1, h_freq=40, fir_design='firwin', n_jobs=4)
+    if not events or not event_id:
+        #Load events and extract event ids
+        event_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}+R_*+T_*.eve'.format(state, block)))[0]
+        events = mne.read_events(event_file)
+        
+        ids = op.splitext(op.basename(event_file))[0].split('+')[1:]
+        event_id = dict()
+        for i in ids:
+            k, v = i.split('_')
+            event_id[k] = int(v)
+    
+    epoforica = mne.Epochs(rawforica, events, event_id, baseline=None, reject=rejection, reject_by_annotation=True, preload=True)
+    epoforica.equalize_event_counts(list(event_id.keys()))
+    RT_delay_i = int(np.round(np.median(epoforica['T'].events[:,0] - epoforica['R'].events[:,0])))
+    RT_delay = epoforica.times[epoforica.time_as_index(0)[0] + RT_delay_i]
+    
+    epoforica = epoforica['R']
+    epoforica.crop(Rwin, RT_delay + Twin)
+    epoforica.average().plot_joint()
+    
+    ica = ICA(n_components=n_components, method=method) #create ICA object
+    ica.exclude = []
+    ica.labels_ = dict()
+    
+    ica.fit(epoforica, picks=mne.pick_types(epoforica.info, ref_meg=False), decim=6) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
+    
+    # Detect ECG artifacts
+    ica.labels_['ecg_scores'] = ica.find_bads_ecg(epoforica, threshold=0)[1].tolist()
+    
+    # Fix number of artifactual components
+    ica.labels_['ecg'] = ica.labels_['ecg'][:3]
+    
+    # Tag for exclusion
+    ica.exclude = ica.labels_['ecg']
+    
+    # Plot scores
+    ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ECG_threshold)
+    if save:
+        plt.savefig(op.join(ICA_path, '{}_{}-{}_components-scores_ecg.pdf'.format(state, block, n_components)), transparent=True)
+        plt.close()
+    
+    epochs = mne.Epochs(raw, events, event_id, baseline=None, reject=rejection, reject_by_annotation=True, preload=True)['R']
+    ica.plot_overlay(epochs.average())
+    
 
 
 def t_detector(task, subject, state, block, raw, R_sign=0, event_id=333, l_freq=5, h_freq=35, T_window=[.2,.35], save=True, custom_ecg=dict()):

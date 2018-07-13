@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 #task='SMEG'; names=['ECG_included','ECG_excluded']; keys=['R','T']
 #subject='069'; evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
 #state='FA'; block='02'; name=names[0]; k=keys[0]
-#evoked = mne.Evoked(op.join(evoked_path, '{}_{}-{}-ave.fif'.format(state, block, name)), condition = k)
+#evoked = mne.Evoked(op.join(evoked_path, '{}_{}_{}-{}-ave.fif'.format(subject, state, block, name)), condition = k)
 #bad_chan = get_chan_name(subject, 'bad', data=evoked)
 #evoked.drop_channels(bad_chan).plot_joint()
 #evoked.plot_sensors()
@@ -30,7 +30,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 #==============================================================================
 
 
-def ERP(task, subject, state, block_group, name='ECG_included', cov_keys=['R','T'], rejection={'mag':3500e-15}, baseline={'R':(None,-.225), 'T':(None,None)}, window={'R':(-.35,.425), 'T':(-.175,.275)}, data_win={'R':(.35,None), 'T':(.1,.25)}, n_components=.975):
+def ERP(task, subject, state, block_group, name='ECG_included', cov_keys=['R','T'], rejection={'mag':3500e-15}, baseline={'R':(None,-.225), 'T':(None,None)}, window={'R':(-.35,.425), 'T':(-.175,.275)}, data_win={'R':(.35,None), 'T':(.1,None)}, n_components=.975):
     """
     Returns baseline noise covariance for the block_group and a dict containing a list of Evoked (for each block in block_group) assigned to their name.
     Parameters:
@@ -65,9 +65,9 @@ def ERP(task, subject, state, block_group, name='ECG_included', cov_keys=['R','T
         raw = mne.io.read_raw_fif(op.join(raw_path, '{}_{}-raw.fif'.format(state, block)), preload=True)
         ica = read_ica(op.join(ICA_path, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
         ica.exclude = ica.labels_['eog']
-        if name != 'ECG_included':
-            ica.exclude += ica.labels_['ecg']
         ica.apply(raw)
+#        if name != 'ECG_included':
+#            ica.exclude += ica.labels_['ecg']
         
         #Load events and extract event ids
         event_file = glob.glob(op.join(epochs_path, 'Events', subject, '{}_{}+{}_*.eve'.format(state, block, '_*+'.join(cov_keys))))[0]
@@ -88,9 +88,9 @@ def ERP(task, subject, state, block_group, name='ECG_included', cov_keys=['R','T
             #Epoch
             epochs = mne.Epochs(raw, events, event_id, *window[k], baseline=baseline[k], reject=rejection, reject_by_annotation=True, preload=True)
             data_cov_file = op.join(cov_path, '{}_{}_{}-{}_{}-data-cov.fif'.format(subject, state, '_'.join(block_group), k, name))
-            mne.write_cov(data_cov_file, mne.compute_covariance(epochs, True, *data_win[k], method='empirical', n_jobs=4))
+            mne.write_cov(data_cov_file, mne.compute_covariance(epochs[k], True, *data_win[k], method='empirical', n_jobs=4))
             
-            if k in cov_keys: epochs_list.append(epochs)
+            if k in cov_keys: epochs_list.append(epochs[k])
             
 #            # Apply baseline
 #            epochs[k].apply_baseline(baseline[k])
