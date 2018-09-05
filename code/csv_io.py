@@ -31,11 +31,12 @@ Raw_data_path = op.join(pathBase, 'Raw')
 
 #GET SUBJECT LIST
 #==============================================================================
-def get_subjlist(task=None, date=None, pathBase = Analysis_path):
+def get_subjlist(task=None, date=None, pathBase = Analysis_path, include_all=False):
      
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
      
-     ld = ld[ld.include == '1']
+     if not include_all:
+         ld = ld[ld.include == '1']
      if task:
          ld = ld[ld.task == task]
  
