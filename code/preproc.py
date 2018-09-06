@@ -588,7 +588,7 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     return events, event_id
 
 
-def ECG_ICA(task, subject, state, block, raw=None, events=None, event_id=None, rejection={'mag': 7000e-15}, Rwin=-.1, Twin=.1):
+def ECG_ICA(task, subject, state, block, raw=None, events=None, event_id=None, rejection={'mag': 7000e-15}, Rwin=-.05, Twin=0):
     """
     
     """

@@ -18,15 +18,16 @@ from header import *
 t0 = time.perf_counter()
 task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
-subjects = get_subjlist(task)
+subjects = get_subjlist(task)#, include_all=True)
 
-subjects = subjects[:subjects.index('109')]
+#subjects = subjects[:subjects.index('109')]
 # # Last subject preprocessed: 101
 # # Future subjects list:
 #subjects = subjects[subjects.index('101')+1:]
 
-reject = ['069', '072', '074', '079', '098', '109']#074, 079, 098, 109: no MRI ; '069': NOISE
-for sub in reject:
+no_mri = ['019', '021', '074', '075', '078', '079', '080', '098', '103', '109']
+bad_data = ['040', '053', '069', '081']
+for sub in no_mri + bad_data:
     if sub in subjects:
         subjects.remove(sub)
 
@@ -97,11 +98,11 @@ for sub in subjects:
                 custom_args['tstart'] = custom_args['tstart'][state+blk]
 #            try:
 #            step='process'
-#            raw = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5, check_ica=True, overwrite_ica=True, custom_args=custom_args)
+            raw = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5, check_ica=True, overwrite_ica=True, custom_args=custom_args)
 #            step='epoch'
-#            events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
+            events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
 #            step='ECG check'
-#            check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
+            check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
 #            except:
 #                with open('run.log', 'a') as fid:
 #                    fid.write(sub+'\t'+state+'\t'+blk+'\t'+'preproc bug\tstep\n')
@@ -212,30 +213,30 @@ win = (-.175,-.075)#(.1,.2)
 surface = 'ico4'
 win = {'R':(.35,.425), 'T':(.1,.35)}
 data_file = op.join(stc_path, 'fsaverage', 'DATASET-{}-surface_{}-{}Hz-beamformer.nc'.format(noise_cov, surface, sfreq))#, *win[]
-for name in names:
-    for k in keys:
-        kname = k+'_'+name
-        for st,state in enumerate(states):
-            print(state, kname)
-            for su,sub in enumerate(tqdm(subjects)):
-                stc_file = op.join(stc_path, 'fsaverage', sub, '{}_{}-{}-{}*{}_{}*{}'.format(sub, state, kname, noise_cov, *win[k], stc_ext))
-                file = glob.glob(stc_file)[0]
-                data = mne.read_source_estimate(file[:file.index(stc_ext)])
-                if sfreq:
-                    data.resample(sfreq)
-                if not st and not su:#and not n 
-                    times = data.times
-                    vertices = np.concatenate([['lh_' + str(x) for x in data.lh_vertno],['rh_' + str(x) for x in data.rh_vertno]])
-                    stc = np.zeros((len(states), len(subjects), *data.data.T.shape))
-                    stc = xr.DataArray(stc, dims=['state', 'subject', 'time', 'src'], coords={'state':states, 'subject':subjects, 'time':times, 'src':vertices})
-                stc[st,su] = data.data.T
-                del data
-        if not op.isfile(data_file):
-            mode = 'w'
-        else:
-            mode = 'a'
-        stc.to_netcdf(path=data_file, group=kname, mode=mode)
-        del stc
+#for name in names:
+#    for k in keys:
+#        kname = k+'_'+name
+#        for st,state in enumerate(states):
+#            print(state, kname)
+#            for su,sub in enumerate(tqdm(subjects)):
+#                stc_file = op.join(stc_path, 'fsaverage', sub, '{}_{}-{}-{}*{}_{}*{}'.format(sub, state, kname, noise_cov, *win[k], stc_ext))
+#                file = glob.glob(stc_file)[0]
+#                data = mne.read_source_estimate(file[:file.index(stc_ext)])
+#                if sfreq:
+#                    data.resample(sfreq)
+#                if not st and not su:#and not n 
+#                    times = data.times
+#                    vertices = np.concatenate([['lh_' + str(x) for x in data.lh_vertno],['rh_' + str(x) for x in data.rh_vertno]])
+#                    stc = np.zeros((len(states), len(subjects), *data.data.T.shape))
+#                    stc = xr.DataArray(stc, dims=['state', 'subject', 'time', 'src'], coords={'state':states, 'subject':subjects, 'time':times, 'src':vertices})
+#                stc[st,su] = data.data.T
+#                del data
+#        if not op.isfile(data_file):
+#            mode = 'w'
+#        else:
+#            mode = 'a'
+#        stc.to_netcdf(path=data_file, group=kname, mode=mode)
+#        del stc
 
 mne.set_log_level(verb)
 
