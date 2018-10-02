@@ -741,3 +741,21 @@ Nothing to report.
 108
 ---
 `FA_14`: weird EOG components (probably due to numerous double blinks + long blinks)
+
+
+02/10/2018
+==========
+
+079
+---
+`01`: 3 peak movements around 52, 54, and 65 sec ; couldn't keep coil proportions (Mean, difference <= 0.0346 cm)
+
+
+080
+---
+`10`: couldn't keep coil proportions (Median, difference <= 0.0189 cm)
+
+
+099
+---
+I suspect the left coil moved during second half of experiment.
