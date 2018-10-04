@@ -18,19 +18,19 @@ from header import *
 t0 = time.perf_counter()
 task = 'SMEG' #'MIMOSA'
 states = ['RS','FA','OM']
-subjects = get_subjlist(task)#, include_all=True)
+subjects = get_subjlist(task) + ['053'] #, include_all=True)
 
 #subjects = subjects[:subjects.index('109')]
 # # Last subject preprocessed: 101
 # # Future subjects list:
 #subjects = subjects[subjects.index('101')+1:]
 
-no_mri = ['019', '021', '074', '075', '078', '079', '080', '098', '103', '109']
+no_mri = ['019', '021']
 bad_data = ['040', '053', '069', '081']
-for sub in no_mri + bad_data:
+for sub in no_mri: #+ bad_data:
     if sub in subjects:
         subjects.remove(sub)
-
+#subjects = ['074', '075', '076', '078', '079', '080', '098', '099', '103', '109']
 subjects.sort()
 #==============================================================================
 
@@ -77,14 +77,14 @@ from anat import BEM, src_space
 
 
 #%% PREPROCESSING
-from preproc import process, R_T_ECG_events, epoch, empty_room_covariance, check_ecg_epoch
+from preproc import process, R_T_ECG_events, ECG_ICA, empty_room_covariance, check_ecg_epoch
 
 custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM02': .15, 'FA04': .7}, 'force':True},
-              '010': {'R_sign': -1, 'heart_rate': 77, 'T_sign': 1},
-              '012': {'R_sign': -1, 'heart_rate': 77, 'T_sign': 1},
-              '028': {'R_sign': -1, 'heart_rate': 55},
+              '010': {'R_sign': -1, 'T_sign': 1},#, 'heart_rate': 77
+              '012': {'R_sign': -1, 'T_sign': 1},#, 'heart_rate': 77
+              '028': {'R_sign': -1},#, 'heart_rate': 55
               '057': {'R_sign': -1},
-              '069': {'R_sign': -1, 'heart_rate': 94}}
+              '069': {'R_sign': -1}}#, 'heart_rate': 94
 
 for sub in subjects:
     if not op.isfile(op.join(Analysis_path, task, 'meg', 'Covariance', sub, 'empty_room-cov.fif')):
@@ -97,11 +97,12 @@ for sub in subjects:
             if 'tstart' in custom_args.keys():
                 custom_args['tstart'] = custom_args['tstart'][state+blk]
 #            try:
-#            step='process'
-            raw = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, ECG_threshold=0.2, EOG_threshold=5, check_ica=True, overwrite_ica=True, custom_args=custom_args)
-#            step='epoch'
+##            step='process'
+            raw = process(task, sub, state, blk, ica_rejection={'mag':7000e-15}, EOG_threshold=5, check_ica=True, overwrite_ica=True)#, custom_args=custom_args)
+##            step='epoch'
             events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
-#            step='ECG check'
+##            step='ECG check'
+            ECG_ICA(task, sub, state, blk, raw, events, event_id, rejection={'mag': 7000e-15}, ECG_threshold=.2)
             check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
 #            except:
 #                with open('run.log', 'a') as fid:

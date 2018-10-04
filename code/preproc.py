@@ -106,7 +106,7 @@ def run_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, ecg
     ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
     if save and not op.isfile(ICA_log):
         with open(ICA_log, 'w') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','start','end','n_components','n_selected_comps','ncomp_ECG','pulse','ncomp_EOG','rejection','dropped_epochs'))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','start','end','n_components','n_selected_comps','ncomp_ECG','pulse','ncomp_EOG','rejection','dropped_epochs'))
     
     raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
     
@@ -237,10 +237,10 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         raw = mne.io.read_raw_ctf(raw_fname, preload=True)
     
     # ICA path
-    ICA_path = op.join(Analysis_path, task, 'meg', 'Raw', 'ICA', subject)
+    ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
     if save and not op.isdir(ICA_path):
         os.makedirs(ICA_path)
-    ICA_file = op.join(ICA_path, '{}_{}-ica.fif'.format(state, block))
+    ICA_file = op.join(ICA_path, '{}_{}_{}-fixed_length-ica.fif'.format(subject, state, block))
     
     # ICA log
     ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
@@ -290,7 +290,7 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     # Plot scores
     ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog')
     if save:
-        plt.savefig(op.join(ICA_path, '{}_{}-scores_eog.png'.format(state, block)))#, transparent=True)
+        plt.savefig(op.join(ICA_path, '{}_{}_{}-scores_eog.png'.format(subject, state, block)))#, transparent=True)
         plt.close()
     
     # Save ICA
@@ -298,7 +298,7 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         ica.save(ICA_file)
         # Write ICA log
         with open(ICA_log, 'a') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,int(round(start)),int(round(end)) if end else int(round(raw.times[-1])),n_components,ica.n_components_,len(ica.labels_['eog']),ica.labels_['rejection'],len(ica.labels_['drop_inds_'])))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,int(round(start)),int(round(end)) if end else int(round(raw.times[-1])),n_components,ica.n_components_,len(ica.labels_['eog']),ica.labels_['rejection'],len(ica.labels_['drop_inds_'])))
     
     return ica
 
@@ -310,8 +310,8 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     If save_ica, save ICA and ICA plots (deleting previously existing component properties), and write ICA log (default to True).
     If overwrite_ica, artifact scoring will be perfomed again (default to False).
     Output:
-        'Analyses/<task>/meg/Raw/ICA/<subject>/<state>_<block>-overlay_eog.png'
-        'Analyses/<task>/meg/Raw/ICA/<subject>/<state>_<block>-properties_eog<i>.png'
+        'Analyses/<task>/meg/ICA/fixed_length/<subject>/<state>_<block>-overlay_eog.png'
+        'Analyses/<task>/meg/ICA/fixed_length/<subject>/<state>_<block>-properties_eog<i>.png'
     Parameters (see mne.filter):
         ica: ICA object. If None (default), will be loaded according to previous parameters. ICA parameters:
             ica_rejection: epoch rejection threshold (default to 4000 fT for magnetometers)
@@ -328,11 +328,12 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     raw = mne.io.read_raw_ctf(raw_fname, preload=True)
     
     # Load ICA
-    ICA_path = op.join(Analysis_path, task, 'meg', 'Raw', 'ICA', subject)
-    ICA_file = op.join(ICA_path, '{}_{}-ica.fif'.format(state, block))
+    ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
+    ICA_file = op.join(ICA_path, '{}_{}_{}-fixed_length-ica.fif'.format(subject, state, block))
     if not ica:
         if overwrite_ica or not op.isfile(ICA_file):
-            ica = run_ica(task, subject, state, block, raw=raw.copy(), n_components=n_components, save=save_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, custom_args=custom_args)
+#            ica = run_ica(task, subject, state, block, raw=raw.copy(), n_components=n_components, save=save_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, custom_args=custom_args)
+            ica = raw_ica(task, subject, state, block, raw=raw.copy(), n_components=n_components, save=save_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, EOG_threshold=EOG_threshold)
         else:
             ica = read_ica(ICA_file)
     
@@ -357,7 +358,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         check_eog = create_eog_epochs(raw)
         ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'])
         if save_ica:
-            plt.savefig(op.join(ICA_path, '{}_{}-overlay_eog.png'.format(state, block)))#, transparent=True, dpi=360)
+            plt.savefig(op.join(ICA_path, '{}_{}_{}-overlay_eog.png'.format(subject, state, block)))#, transparent=True, dpi=360)
             plt.close()
             for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_eog*')):
                 os.remove(pic)
@@ -365,13 +366,13 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         for comp in ica.labels_['eog']:
             ica.plot_properties(check_eog, picks=comp)
             if save_ica:
-                plt.savefig(op.join(ICA_path, '{}_{}-properties_eog{}.png'.format(state, block, comp)))#, transparent=True)
+                plt.savefig(op.join(ICA_path, '{}_{}_{}-properties_eog{}.png'.format(subject, state, block, comp)))#, transparent=True)
                 plt.close()
     
     # Save pre-processed data with updated head coordinates
     if update_HPI:
         raw = HPI_update(task, subject, block, raw.copy(), precision=precision, opt=opt, reject_head_mvt=True)
-        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block))
+        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
         if not op.isdir(op.dirname(raw_file)):
             os.makedirs(op.dirname(raw_file))
         raw.save(raw_file, overwrite=True)
@@ -606,7 +607,7 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     
     # Load data
     if not raw:
-        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block))
+        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
         raw = mne.io.read_raw_fif(raw_file, preload=True)
     
     # Epoch ECG on R peak
@@ -668,32 +669,32 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     event_id = {'R': R_id, 'T': T_id}
     
     # Save events
-    event_file = op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}+R_{}+T_{}.eve'.format(state, block, R_id, T_id))
+    event_file = op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}_{}+R_{}+T_{}.eve'.format(subject, state, block, R_id, T_id))
     os.makedirs(op.dirname(event_file), exist_ok=True)
     mne.write_events(event_file, events)
     
     return events, event_id
 
 
-def ECG_ICA(task, subject, state, block, raw=None, events=None, event_id=None, rejection={'mag': 7000e-15}, save=True, n_components=0.975, method='fastica', Rwin=-.05, Twin=0, ECG_threshold=0.25, ECG_max=3):
+def ECG_ICA(task, subject, state, block, raw=None, events=np.array([]), event_id=None, rejection={'mag': 7000e-15}, save=True, n_components=0.975, method='fastica', Rwin=-.05, Twin=0, ECG_threshold=0.25, ECG_max=3):
     """
     
     """
     # Load data
     if not raw:
-        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block))
+        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
         raw = mne.io.read_raw_fif(raw_file, preload=True)
     
     # ICA path
-    ICA_path = op.join(Analysis_path, task, 'meg', 'Epochs', 'ICA', subject)
+    ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
     os.makedirs(ICA_path, exist_ok=True)
-    ICA_file = op.join(ICA_path, '{}_{}-ica.fif'.format(state, block))
+    ICA_file = op.join(ICA_path, '{}_{}_{}-ECG-ica.fif'.format(subject, state, block))
     
     rawforica = raw.copy()
     rawforica.filter(l_freq=1, h_freq=40, fir_design='firwin', n_jobs=4)
-    if not events and not event_id:
+    if not events.size and not event_id:
         #Load events and extract event ids
-        event_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}+R_*+T_*.eve'.format(state, block)))[0]
+        event_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}_{}+R_*+T_*.eve'.format(subject, state, block)))[0]
         events = mne.read_events(event_file)
         
         ids = op.splitext(op.basename(event_file))[0].split('+')[1:]
@@ -728,22 +729,22 @@ def ECG_ICA(task, subject, state, block, raw=None, events=None, event_id=None, r
     # Plot scores
     ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ECG_threshold)
     if save:
-        plt.savefig(op.join(Analysis_path, task, 'meg', 'Epochs', subject, '{}_{}-scores_ecg.png'.format(state, block)))#, transparent=True)
+        plt.savefig(op.join(ICA_path, '{}_{}_{}-scores_ecg.png'.format(subject, state, block)))#, transparent=True)
         plt.close()
     
     epochs = mne.Epochs(raw, events, event_id, baseline=None, reject_by_annotation=True, preload=True)['R']
     
     ica.plot_overlay(epochs.average())
     if save:
-        plt.savefig(op.join(ICA_path, '{}_{}-overlay_ecg.png'.format(state, block)))#, transparent=True, dpi=360)
+        plt.savefig(op.join(ICA_path, '{}_{}_{}-overlay_ecg.png'.format(subject, state, block)))#, transparent=True, dpi=360)
         plt.close()
         for pic in glob.glob(op.join(ICA_path, state+'*'+block+'*properties_ecg*')):
             os.remove(pic)
     
     for comp in ica.labels_['ecg']:
         ica.plot_properties(epochs, picks=comp)
-        if save_ica:
-            plt.savefig(op.join(ICA_path, '{}_{}-properties_ecg{}.png'.format(state, block, comp)))#, transparent=True)
+        if save:
+            plt.savefig(op.join(ICA_path, '{}_{}_{}-properties_ecg{}.png'.format(subject, state, block, comp)))#, transparent=True)
             plt.close()
     
     # Save ICA
@@ -903,7 +904,7 @@ def t_detector_sliding(task, subject, state, block, raw, R_sign=0, event_id=333,
     return T_events,T_times,R_epochs,raw
 
 
-def check_ecg_epoch(task, subject, state, block, raw=None, events=np.array([]), n_components=.975, synthetic=True, save=False):
+def check_ecg_epoch(task, subject, state, block, raw=None, events=np.array([]), synthetic=True, save=False):
     """
     Plot ECG along with events used for epoching. If synthetic, create and plot a synthetic ECG channel as well.
     """
@@ -912,13 +913,13 @@ def check_ecg_epoch(task, subject, state, block, raw=None, events=np.array([]), 
     
     # Load data
     if not raw:
-        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}-raw.fif'.format(state, block))
+        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
         raw = mne.io.read_raw_fif(raw_file, preload=True)
     
     ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
     
     if synthetic:
-        ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}-{}_components-ica.fif'.format(state, block, n_components)))
+        ica = read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}_{}-fixed_length-ica.fif'.format(subject, state, block)))
         ica.exclude = ica.labels_['eog']
         ica.apply(raw)
         
@@ -934,12 +935,12 @@ def check_ecg_epoch(task, subject, state, block, raw=None, events=np.array([]), 
     
     if not events.any():
         #Load events and extract event ids
-        event_file = glob.glob(op.join(epochs_path, 'Events', subject, '{}_{}*.eve'.format(state, block,)))[0]
+        event_file = glob.glob(op.join(epochs_path, 'Events', subject, '{}_{}_{}*.eve'.format(subject, state, block)))[0]
         events = mne.read_events(event_file)
     
-    ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None)
+    ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None, title='Average pulse: {} bpm'.format(np.round(len(events[:,2]==999)*60/ecg.times[-1])))
     if save:
-        plt.savefig(op.join(epochs_path, subject, '{}_{}-ECG.pdf'.format(state, block)), transparent=True)
+        plt.savefig(op.join(epochs_path, subject, '{}_{}_{}-ECG.pdf'.format(subject, state, block)), transparent=True)
         plt.close()
     
     return ecg
