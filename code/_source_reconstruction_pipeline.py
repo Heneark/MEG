@@ -80,13 +80,13 @@ from anat import BEM, src_space
 from preproc import process, R_T_ECG_events, ECG_ICA, empty_room_covariance, check_ecg_epoch
 
 custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM02': .15, 'FA04': .7}, 'force':True},
-              '010': {'R_sign': -1, 'T_sign': 1},#, 'heart_rate': 77
+              '010': {'R_sign': -1, 'T_sign': 1, 'heart_rate': 77},#
               '012': {'R_sign': -1, 'T_sign': 1},#, 'heart_rate': 77
               '028': {'R_sign': -1},#, 'heart_rate': 55
               '057': {'R_sign': -1},
               '069': {'R_sign': -1}}#, 'heart_rate': 94
 
-for sub in subjects:
+for sub in ['099']:#subjects:
     if not op.isfile(op.join(Analysis_path, task, 'meg', 'Covariance', sub, 'empty_room-cov.fif')):
         empty_room_covariance(task, sub)
     for state in states:
@@ -102,8 +102,8 @@ for sub in subjects:
 ##            step='epoch'
             events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
 ##            step='ECG check'
-            ECG_ICA(task, sub, state, blk, raw, events, event_id, rejection={'mag': 7000e-15}, ECG_threshold=.2)
             check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
+            ECG_ICA(task, sub, state, blk, raw, events, event_id, rejection={'mag': 7000e-15}, ECG_threshold=.2)
 #            except:
 #                with open('run.log', 'a') as fid:
 #                    fid.write(sub+'\t'+state+'\t'+blk+'\t'+'preproc bug\tstep\n')

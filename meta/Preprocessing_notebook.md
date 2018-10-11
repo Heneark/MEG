@@ -758,4 +758,6 @@ Nothing to report.
 
 099
 ---
-I suspect the left coil moved during second half of experiment.
+`10+start`: preserved the beginning to the cost of the last 100 sec (X = 0.2, Y = 0.05, Z = -0.4)
+
+`10+end`: Preserved the end to the cost of the first 145 sec (MinMax with X_Left = 0.45, Y_Left = 0.1 and Z_Left = -0.9, difference <= 0.0214 cm)

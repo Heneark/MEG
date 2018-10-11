@@ -5,6 +5,7 @@ import pandas as pd
 import collections
 import fnmatch
 import glob
+import mne
 import os.path as op
 from termcolor import colored
 import typing
@@ -181,10 +182,13 @@ def get_rawpath(subj, task=None, noise=0, NoiseBase = op.join(Raw_data_path,'MEG
 
 #GET AN ORDERED DICT OF A SUBJECT'S BLOCKS AND CORRESPONDING STATES
 #==============================================================================
-def get_blocks(subj, state=None, task=None, protocol=None, pathBase = Analysis_path):
+def get_blocks(subj, state=None, task=None, protocol=None, pathBase = Analysis_path, include_all=False):
      
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
 
+     if not include_all:
+         ld = ld[ld.include == '1']
+     
      ld = ld[(ld.id == subj) | (ld.name == subj)]
      
      if state:
@@ -284,3 +288,14 @@ def expertise(subject):
     
     group = sub_data.at[0,'group']
     return group
+
+
+def load_preproc(task, subject, state, block, keep_ecg=False):
+    """
+    
+    """
+    raw = mne.io.read_raw_fif(op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block)), preload=True)
+    if not keep_ecg:
+        ica = mne.preprocessing.read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}_{}-ECG-ica.fif'.format(subject, state, block)))
+        ica.apply(raw)
+    return raw
