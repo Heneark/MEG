@@ -7,11 +7,13 @@ Created on Wed Oct 10 13:10:04 2018
 """
 
 from header import *
+
+from fnmatch import filter
 from mne.time_frequency import psd_welch, psd_multitaper
 from typing import List, Union
 
 
-#%%
+#%% PSD TO DATAARRAY FUNCTION
 
 def psd_average(task: str, subjects: List[str]=None, states: List[str]=['RS', 'FA', 'OM'], n_blk={'RS': 1, 'FA': 2, 'OM': 2}, psd_func: Union[psd_welch, psd_multitaper]=psd_welch, verbose=False):
     """
@@ -44,11 +46,72 @@ def psd_average(task: str, subjects: List[str]=None, states: List[str]=['RS', 'F
     return PSD
 
 
-#%%
+#%% COMPUTE OR LOAD PSD
 
 task = 'SMEG'
-subjects = get_subjlist(task) + ['053']
+subjects = get_subjlist(task)
 subjects.sort()
 
-warnings.filterwarnings("ignore",category=DeprecationWarning)
-PSD = psd_average(task, subjects)
+#warnings.filterwarnings("ignore",category=DeprecationWarning)
+#PSD = psd_average(task, subjects)
+
+PSD = xr.open_dataarray(op.join(Analysis_path, task, 'meg', 'Raw', 'PSD.nc'))
+PSD.load()
+
+
+#%% SELECTION PARAMETERS
+
+state = 'RS1'
+
+subjects = {'all': sorted(get_subjlist(task))}
+no_blk2 = ['002', '004', '007', '016'] #FA2 and OM2 don't exist for these subjects (PSD=0)
+
+subjects['expert'] = list(); subjects['novice'] = list()
+for sub in subjects['all']:
+    if expertise(sub) is 'N':
+        subjects['novice'].append(sub)
+    elif expertise(sub) is 'E':
+        subjects['expert'].append(sub)
+    else:
+        warnings.warn('Expertise of subject {} is not specified, check masterfile.'.format(sub))
+sub_key = 'all'
+
+channels = {'all': PSD.chan.values}
+channels['left'] = filter(channels['all'], 'ML*')
+channels['right'] = filter(channels['all'], 'MR*')
+channels['central'] = filter(channels['all'], 'MZ*')
+chan_key = 'all' #select a subset of channels
+
+fmin = .5 #PSD.freq.values[0]
+fmax = PSD.freq.values[-1]
+
+
+#%% SELECT DATA
+
+data = PSD.loc[state, subjects[sub_key], channels[chan_key], fmin:fmax].mean('chan')
+average = data.mean('subject')
+sem = data.std('subject')/sqrt(data.subject.size)
+
+
+#%% PLOT
+
+plt.figure()
+plt.semilogx(data.freq, average)
+plt.fill_between(data.freq, average+sem, average-sem, alpha=.4)
+plt.title('Average PSD over {sub} subjects for state {s}\nAverage of {ch} channels'.format(s=state, sub=sub_key, ch=chan_key))
+plt.savefig(op.join(Analysis_path, task, 'meg', 'Plots', 'PSD', '{}-{}_subs.png'.format(state, sub_key)))
+
+
+#%%
+
+plt.figure()
+keys = ['novice', 'expert']
+for sub_key in keys:
+    data = PSD.loc[state, subjects[sub_key], channels[chan_key], fmin:fmax].mean('chan')
+    average = data.mean('subject')
+    sem = data.std('subject')/sqrt(data.subject.size)
+    plt.semilogx(data.freq, average)
+    plt.fill_between(data.freq, average+sem, average-sem, alpha=.4)
+plt.title('Average PSD for state {s}\nAverage of {ch} channels'.format(s=state, sub=sub_key, ch=chan_key))
+plt.legend(keys)
+plt.savefig(op.join(Analysis_path, task, 'meg', 'Plots', 'PSD', '{}-{}.png'.format(state, '+'.join(keys))))
