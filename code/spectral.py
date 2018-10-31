@@ -71,7 +71,7 @@ def plot_psd(data, ave_dim, new_fig=True):
     
     """
     average = data.mean(ave_dim)
-    sem = data.std(ave_dim)/sqrt(data[ave_dim].size)
+    sem = data.std(ave_dim)/np.sqrt(data[ave_dim].size)
     
     if new_fig:
         fig = plt.figure()

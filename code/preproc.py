@@ -69,7 +69,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     
     # Load ICA
     ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
-    ICA_file = op.join(ICA_path, '{}_{}_{}-fixed_length-ica.fif'.format(subject, state, block))
+    ICA_file = op.join(ICA_path, '{}_{}_{}-raw-ica.fif'.format(subject, state, block))
     if not ica:
         if overwrite_ica or not op.isfile(ICA_file):
 #            ica = run_ica(task, subject, state, block, raw=raw.copy(), n_components=n_components, save=save_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, ECG_threshold=ECG_threshold, EOG_threshold=EOG_threshold, custom_args=custom_args)
@@ -80,6 +80,10 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     raw.info['subject_info'].update({'sub':subject})
     raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
     raw.pick_types(meg=True, ecg=True, eog=True, stim=True, exclude='bads')
+    
+    # Update head coordinates
+    if update_HPI:
+        raw = HPI_update(task, subject, block, raw.copy(), precision=precision, opt=opt, reject_head_mvt=True)
     
     # Crop recording
     events = mne.find_events(raw)
@@ -115,10 +119,6 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     # Apply ICA
     ica.exclude = ica.labels_['eog']
     ica.apply(raw)
-    
-    # Update head coordinates
-    if update_HPI:
-        raw = HPI_update(task, subject, block, raw.copy(), precision=precision, opt=opt, reject_head_mvt=True)
     
     # Save pre-processed data
     raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
@@ -176,13 +176,13 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     ICA_path = op.join(Analysis_path, task, 'meg', 'ICA', subject)
     if save and not op.isdir(ICA_path):
         os.makedirs(ICA_path)
-    ICA_file = op.join(ICA_path, '{}_{}_{}-fixed_length-ica.fif'.format(subject, state, block))
+    ICA_file = op.join(ICA_path, '{}_{}_{}-raw-ica.fif'.format(subject, state, block))
     
     # ICA log
     ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
     if save and not op.isfile(ICA_log):
         with open(ICA_log, 'w') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','start','end','n_components','n_selected_comps','ncomp_EOG','rejection','dropped_epochs'))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','start','end','n_components','n_selected_comps','ncomp_EOG','rejection','dropped_epochs'))
     
     raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
     
@@ -196,6 +196,10 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     
     # Filter for ICA
     raw.filter(l_freq=1, h_freq=40, fir_design='firwin', n_jobs=4)
+    
+    if ica_rejection is 'auto':
+        auto_epochs = mne.Epochs(raw.copy(), make_fixed_length_events(raw.copy(), 111, duration=2, first_samp=False), tmin=0, tmax=2, baseline=None, picks=mne.pick_types(raw.info), reject=None)
+        ica_rejection = get_rejection_threshold(auto_epochs)
     
     # Fit ICA
     if fit_ica or not op.isfile(ICA_file):
@@ -385,8 +389,13 @@ def HPI_update(task, subject, block, data, precision='0.5cm', opt='start', rejec
 #==============================================================================
     
     if bads and reject_head_mvt:
-        for i in range(len(bad_segments)):
-            data.annotations = mne.Annotations(bad_segments.get_values()[:,0], np.diff(bad_segments.get_values()).ravel(), ['bad head mvt'] * bad_segments.get_values().shape[0])
+#        for i in range(len(bad_segments)):
+        new_annot = mne.Annotations(bad_segments.get_values()[:,0], np.diff(bad_segments.get_values()).ravel(), ['bad head mvt'] * bad_segments.get_values().shape[0])
+        if data.annotations:
+            for onset, duration, description in zip(new_annot.onset, new_annot.duration, new_annot.description):
+                data.annotations.append(onset, duration, description)
+        else:
+            data.annotations = new_annot
 #            events = data.events[:,0]/data.info['sfreq'] #extract event timing
 #            data.drop(np.logical_and(bad_segments.iloc[i][0] < events + data.times[-1], events + data.times[0] < bad_segments.iloc[i][1]), reason = 'head_movement')
 #            #reject the epoch if it ends after the beginning of the bad segment, and starts before the end of the bad segment
@@ -475,7 +484,7 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     return events, event_id
 
 
-def ECG_ICA(task, subject, state, block, raw=None, events=np.array([]), event_id=None, rejection={'mag': 7000e-15}, save=True, fit_ica=False, n_components=0.975, method='fastica', Rwin=-.05, Twin=0, ECG_threshold=0.25, ECG_max=3):
+def ECG_ICA(task, subject, state, block, raw=None, events=np.array([]), event_id=None, rejection={'mag': 7000e-15}, save=True, fit_ica=False, n_components=0.975, method='picard', Rwin=-.05, Twin=0, ECG_threshold=0.25, ECG_max=3):
     """
     
     """
@@ -501,6 +510,10 @@ def ECG_ICA(task, subject, state, block, raw=None, events=np.array([]), event_id
         for i in ids:
             k, v = i.split('_')
             event_id[k] = int(v)
+    
+    if rejection is 'auto':
+        auto_epochs = mne.Epochs(rawforica.copy(), make_fixed_length_events(rawforica.copy(), 111, duration=2, first_samp=False), tmin=0, tmax=2, baseline=None, picks=mne.pick_types(rawforica.info), reject=None)
+        rejection = get_rejection_threshold(auto_epochs)
     
     epoforica = mne.Epochs(rawforica, events, event_id, baseline=None, reject=rejection, reject_by_annotation=True, preload=True)
     epoforica.equalize_event_counts(list(event_id.keys()))
@@ -627,3 +640,34 @@ def empty_room_covariance(task:str, subject:str, notch=inspect.signature(process
 
 def Pre(x):
     return detrend((x-np.mean(x))/np.std(x))
+
+
+def auto_annotate(raw, window=1, overlap=0, decim=1):
+    """
+    
+    """
+    epochs = mne.Epochs(raw.copy(), make_fixed_length_events(raw.copy(), 111, duration=window-overlap, first_samp=False), tmin=0, tmax=window, baseline=None, picks=mne.pick_types(raw.info), reject=None)
+    events = epochs.events
+    
+    reject = get_rejection_threshold(epochs, decim=decim)
+    epochs.drop_bad(reject = reject)
+    rejected = events[np.where(epochs.drop_log)][:,0]
+    
+    new_annot = mne.Annotations(raw.times[rejected], np.full(rejected.shape, window), np.full(rejected.shape, 'bad AutoReject'))
+    if raw.annotations:
+        for onset, duration, description in zip(new_annot.onset, new_annot.duration, new_annot.description):
+            raw.annotations.append(onset, duration, description)
+    else:
+        raw.annotations = new_annot
+    
+    return raw
+
+
+def rejected_duration(raw):
+    """
+    
+    """
+    full = raw.get_data().shape[-1]/raw.info['sfreq']
+    clean = raw.get_data(reject_by_annotation='omit').shape[-1]/raw.info['sfreq']
+    
+    return full-clean

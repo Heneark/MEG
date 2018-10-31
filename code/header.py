@@ -5,6 +5,8 @@ Created on Wed Aug  2 18:02:35 2017
 @author: oussama.abdoun
 """
 
+import autoreject
+from autoreject import get_rejection_threshold
 import sys, os
 import os.path as op
 import glob
