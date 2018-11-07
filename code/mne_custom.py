@@ -493,3 +493,42 @@ def custom_bads_ecg(self, inst, custom_args, ch_name=None, threshold=None, start
     self.labels_['ecg/%s' % ch_name] = list(ecg_idx)
     return self.labels_['ecg'], scores, pulse
 
+
+def open_report(fname, **params):
+    """Read a saved report or, if it doesn't exist yet, create a new one.
+    The returned report can be used as a context manager, in which case any
+    changes to the report are saved when exiting the context block.
+    Parameters
+    ----------
+    fname : str
+        The file containing the report, stored in the HDF5 format. If the file
+        does not exist yet, a new report is created that will be saved to the
+        specified file.
+    **params : list of parameters
+        When creating a new report, any named parameters other than ``fname``
+        are passed to the `__init__` function of the `Report` object. When
+        reading an existing report, the parameters are checked with the
+        loaded report and an exception is raised when they don't match.
+    Returns
+    -------
+    report : instance of Report
+        The report.
+    """
+    if op.exists(fname):
+        # Check **params with the loaded report
+        state = read_hdf5(fname, title='mnepython')
+        for param in params.keys():
+            if param not in state:
+                raise ValueError('The loaded report has no attribute %s' %
+                                 param)
+            if params[param] != state[param]:
+                raise ValueError("Attribute '%s' of loaded report does not "
+                                 "match the given parameter." % param)
+        report = Report()
+        report.__setstate__(state)
+    else:
+        report = Report(**params)
+    # Keep track of the filename in case the Report object is used as a context
+    # manager.
+    report._fname = fname
+    return report
