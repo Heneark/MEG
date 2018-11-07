@@ -42,6 +42,7 @@ from mne.preprocessing import ICA
 from mne.preprocessing import create_eog_epochs, create_ecg_epochs, read_ica
 from mne.event import make_fixed_length_events
 from mne.minimum_norm import make_inverse_operator, apply_inverse, write_inverse_operator, read_inverse_operator
+from mne.report import Report
 
 
 # ENVIRONMENT VARIABLES

@@ -150,16 +150,16 @@ def get_name(subj, pathBase = Analysis_path):
      
 #GET RAW DATA PATH
 #==============================================================================
-def get_rawpath(subj, task=None, noise=0, NoiseBase = op.join(Raw_data_path,'MEG_noise'), pathBase = Analysis_path):
+def get_rawpath(subj, task=None, block=None, noise=False, NoiseBase = op.join(Raw_data_path,'MEG_noise'), pathBase = Analysis_path):
         
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
 
-     if subj.isdigit() == True:   
+     if subj.isdigit():   
          ldsub = ld.loc[ld['id'] == subj]
          subj_id = subj
          subj_name = ldsub.iloc[0]['name']
      
-     if subj.isalpha() == True:
+     if subj.isalpha():
          ldsub = ld.loc[ld['name'] == subj]
          subj_name = subj
          subj_id = ldsub.iloc[0]['id']
@@ -170,13 +170,19 @@ def get_rawpath(subj, task=None, noise=0, NoiseBase = op.join(Raw_data_path,'MEG
      protocol = ldsub.iloc[0]['protocol']
      date = ldsub.iloc[0]['date']
      
-     if noise==1:
+     if noise:
          filename = glob.glob(op.join(NoiseBase, subj_id, subj_name + '_' + protocol + '_' + date + '.misc', 'lyon_Noise_*'))[0]
- 
-     if noise==0:
-         filename =  subj_name + '_' + protocol + '_' + date + '_'
+     
+     else:
+         if not task:
+             raise ValueError('Task not specified.')
+         if not block:
+             raise ValueError('No block specified.')
          
-     return subj_id, filename
+         fname = subj_name + '_' + protocol + '_' + date + '_' + block + '.ds'
+         filename = op.join(Raw_data_path, task, 'meg', subj_id, fname)
+         
+     return filename
 #==============================================================================
 
 
@@ -289,6 +295,25 @@ def expertise(subject):
     group = sub_data.at[0,'group']
     return group
 
+
+def load_raw(task, subject, block):
+    """
+    
+    """
+    raw = mne.io.read_raw_ctf(get_rawpath(subject, task, block), preload=True)
+    
+    raw.info['subject_info'].update({'sub':subject})
+    raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
+    raw.pick_types(meg=True, ecg=True, eog=True, stim=True)
+    
+    # Crop recording
+    events = mne.find_events(raw)
+    start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0 #Crop recording if first event is less than 2 min after the beginning
+    end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[-1][0]] > 300 else None #Crop recording if last event is more than 5 min after the beginning
+    raw.crop(tmin=start, tmax=end)
+    
+    return raw
+    
 
 def load_preproc(task, subject, state, block, keep_ecg=False):
     """
