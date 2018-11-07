@@ -43,7 +43,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 #==============================================================================
 
 
-def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_args=dict(), update_HPI=True, precision='0.5cm', opt='start'):
+def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_args=dict(), update_HPI=True, precision='0.5cm', opt='start', report=None):
     """
     Run preprocessing and return preprocessed raw data.
     If check_ica, plot overlay and properties of ECG and EOG components (default to True).
@@ -102,22 +102,32 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     if EOG_score:
         ica.labels_['eog'] = sorted(np.where(np.abs(ica.labels_['eog_scores']) >= EOG_score)[0])
     
+    # Save artefact detection
+    ica.save(ica.labels_['filename'])
+    
+    # AutoReject
+    raw_clean = raw.copy()
+    ica.apply(raw_clean, exclude=ica.labels_['eog']+ica.labels_['ecg'])
+    raw_clean = auto_annotate(raw_clean)
+    raw.annotations = raw_clean.annotations
+    
     # Save pre-processed data
     raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
     os.makedirs(op.dirname(raw_file), exist_ok=True)
     raw.save(raw_file, overwrite=True)
     
     # Preprocessing report
-    report = Report(subject=subject, title='{} {} {} - Preprocessing report'.format(subject, state, block), image_format='svg')
+    if not report:
+        report = Report(subject=subject, title='{} {} {} - Preprocessing report'.format(subject, state, block), image_format='svg')
     figs = dict()
     
     # EOG plots
     check_eog = create_eog_epochs(raw.copy(), reject=ica.labels_['rejection'])
     
-    figs['EOG scores'] = ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog', axhline=EOG_score, figsize=(8,2), show=False)
+    figs['{} EOG scores'.format(state+block)] = ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog', axhline=EOG_score, figsize=(8,2), show=False)
     for comp in ica.labels_['eog']:
-        figs['EOG {}'.format(comp)] = ica.plot_properties(check_eog, picks=comp, show=False)
-    figs['EOG overlay'] = ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'], show=False)
+        figs['{} EOG {}'.format(state+block, comp)] = ica.plot_properties(check_eog, picks=comp, show=False)
+    figs['{} EOG overlay'.format(state+block)] = ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'], show=False)
     
     # ECG Plots
     if custom_args:
@@ -125,21 +135,21 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     else:
         check_ecg = create_ecg_epochs(raw.copy(), reject=ica.labels_['rejection'])
     
-    figs['ECG scores'] = ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ECG_threshold, figsize=(8,2), show=False)
+    figs['{} ECG scores'.format(state+block)] = ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ECG_threshold, figsize=(8,2), show=False)
     for comp in ica.labels_['ecg']:
-        figs['ECG {}'.format(comp)] = ica.plot_properties(check_ecg, picks=comp, show=False)
-    figs['ECG overlay'] = ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'], show=False)
+        figs['{} ECG {}'.format(state+block, comp)] = ica.plot_properties(check_ecg, picks=comp, show=False)
+    figs['{} ECG overlay'.format(state+block)] = ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'], show=False)
     
     # Save report
     report.add_figs_to_section(list(figs.values()), list(figs.keys()), state+block)
-    report_file = op.join(Analysis_path, task, 'meg', 'Reports', subject, )
-    os.makedirs(op.dirname(reportfile), exist_ok=True)
-    overwrite_report = block == next(iter(get_blocks(subject, task=task)))
-    report.save(report_file, open_browser=False, overwrite=overwrite_report)
+#    report_file = op.join(Analysis_path, task, 'meg', 'Reports', subject, )
+#    os.makedirs(op.dirname(reportfile), exist_ok=True)
+#    overwrite_report = block == next(iter(get_blocks(subject, task=task)))
+#    report.save(report_file, open_browser=False, overwrite=overwrite_report)
     
     # Apply ICA
-    ica.apply(raw, exclude=ica.labels_['eog'])
-    return raw
+    ica.apply(raw, exclude=ica.labels_['eog']+ica.labels_['ecg'])
+    return raw_clean, report
 
 
 # # /!\ Custom attributes (e.g., ica.scores_) are not kept upon .save(), which calls _write_ica() whose dict ica_misc is not editable on call.
@@ -213,6 +223,7 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
     ica.labels_['rejection'] = ica_rejection
     ica.labels_['drop_inds_'] = ica.drop_inds_
+    ica.labels_['filename'] = ICA_file
     
     # Detect EOG artifacts
     ica.labels_['eog_scores'] = ica.find_bads_eog(raw.copy(), threshold=EOG_threshold)[1].tolist()
@@ -244,7 +255,7 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     return ica
 
 
-def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_args=dict(), update_HPI=True, precision='0.5cm', opt='start'):
+def process0(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_args=dict(), update_HPI=True, precision='0.5cm', opt='start'):
     """
     Run preprocessing and return preprocessed raw data.
     If check_ica, plot overlay and properties of ECG and EOG components (default to True).
@@ -333,7 +344,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
 # # => exploit the attribute labels_
 # # # /!\ Numpy arrays are not supported --> convert to type list with .tolist()
 
-def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, EOG_threshold=3, EOG_min=1, EOG_max=2, custom_args=dict()):
+def raw_ica0(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=0.975, method='fastica', ica_rejection={'mag':4000e-15}, EOG_threshold=3, EOG_min=1, EOG_max=2, custom_args=dict()):
     """
     Fit ICA on raw MEG data and return ICA object.
     If save, save ICA, save ECG and EOG artifact scores plots, and write log (default to True).
@@ -842,18 +853,20 @@ def Pre(x):
     return detrend((x-np.mean(x))/np.std(x))
 
 
-def auto_annotate(raw, window=1, overlap=0, decim=1, drop_bad=True):
+def auto_annotate(raw, window=1, overlap=0, decim=1):
     """
     
     """
-    epochs = mne.Epochs(raw.copy(), make_fixed_length_events(raw.copy(), 111, duration=window-overlap, first_samp=False), tmin=0, tmax=window, baseline=None, picks=mne.pick_types(raw.info), reject=None)
-    if drop_bad:
-        epochs.drop_bad()
+    epochs = mne.Epochs(raw.copy(), make_fixed_length_events(raw.copy(), 111, duration=window-overlap, first_samp=False), tmin=0, tmax=window, baseline=None, picks=mne.pick_types(raw.info, ref_meg=False), reject=None)
     events = epochs.events
+    
+    epochs_clean = epochs.copy().drop_bad()
+    already_rejected = events[np.where(epochs_clean.drop_log)][:,0]
     
     reject = get_rejection_threshold(epochs, decim=decim)
     epochs.drop_bad(reject = reject)
-    rejected = events[np.where(epochs.drop_log)][:,0]
+    rejected = events[np.where(epochs.drop_log)][:,0] #Bug with NO_DATA
+    np.array(list(set(rejected) - set(already_rejected)))
     
     new_annot = mne.Annotations(raw.times[rejected], np.full(rejected.shape, window), np.full(rejected.shape, 'bad AutoReject'))
     if raw.annotations:
@@ -873,3 +886,6 @@ def rejected_duration(raw):
     clean = raw.get_data(reject_by_annotation='omit').shape[-1]/raw.info['sfreq']
     
     return full-clean
+
+
+rejected_duration = lambda raw: raw.get_data().shape[-1]/raw.info['sfreq'] - raw.get_data(reject_by_annotation='omit').shape[-1]/raw.info['sfreq']

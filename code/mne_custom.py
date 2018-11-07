@@ -17,6 +17,8 @@ from mne.preprocessing.ctps_ import ctps
 from mne.preprocessing.ecg import _get_ecg_channel_index, _make_ecg
 from mne.utils import logger, sum_squared, verbose, warn
 import numpy as np
+import os.path as op
+from mne.externals.h5io import read_hdf5
 from scipy.signal import detrend, hilbert
 
 def qrs_custom(sfreq, ecg, custom_args, var=1/3, thresh_value='auto', levels=2.5, n_thresh=3,
