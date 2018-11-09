@@ -26,7 +26,7 @@ subjects = get_subjlist(task, include_all=True)
 #subjects = subjects[subjects.index('101')+1:]
 
 no_mri = ['019', '021']
-reject = ['011']
+reject = ['011', '002']
 bad_data = ['040', '053', '069', '081']
 for sub in no_mri + reject: #+ bad_data:
     if sub in subjects:

@@ -120,14 +120,15 @@ def process(task, subject, state, block, notch=np.arange(50,301,50), high_pass=0
     if EOG_min and not ica.labels_['eog']:
         ica.labels_['eog'] = np.argsort(np.abs(ica.labels_['eog_scores']))[::-1].tolist()[:EOG_min]
     
-    # Save artefact detection
-    ica.save(ica.labels_['filename'])
-    
     # AutoReject
     raw_clean = raw.copy()
     ica.apply(raw_clean, exclude=ica.labels_['eog']+ica.labels_['ecg'])
-    raw_clean = auto_annotate(raw_clean)
+    raw_clean, threshold = auto_annotate(raw_clean)
     raw.annotations = raw_clean.annotations
+    
+    # Save artefact detection
+    ica.labels_['raw_rejection'] = threshold
+    ica.save(ica.labels_['filename'])
     
     # Save pre-processed data
     raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
@@ -204,26 +205,6 @@ def raw_ica(task, subject, state, block, raw=None, save=True, overwrite_fit=Fals
     ica.labels_['drop_inds_'] = ica.drop_inds_
     ica.labels_['filename'] = ICA_file
     
-    # Detect EOG artifacts
-    ica.labels_['eog_scores'] = ica.find_bads_eog(raw.copy(), threshold=EOG_threshold)[1].tolist()
-    
-    # Fix number of artifactual components
-    ica.labels_['eog'] = ica.labels_['eog'][:EOG_max]
-    if EOG_min and not ica.labels_['eog']:
-        ica.labels_['eog'] = np.argsort(np.abs(ica.labels_['eog_scores'])).tolist()
-        ica.labels_['eog'] = ica.labels_['eog'][::-1][:EOG_min]
-    
-    # Tag for exclusion
-    ica.exclude = ica.labels_['eog']
-    
-    # Plot scores
-    ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog')
-    if save:
-        plot_path = op.join(Analysis_path, task, 'meg', 'Plots', 'Preprocessing', subject)
-        os.makedirs(plot_path, exist_ok=True)
-        plt.savefig(op.join(plot_path, '{}_{}_{}-scores_eog.png'.format(subject, state, block)))#, transparent=True)
-        plt.close()
-    
     # Save ICA
     if save:
         ica.save(ICA_file)
@@ -265,7 +246,7 @@ def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, 
     figs['{} ECG overlay'.format(state+block)] = ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'], show=False)
     
     # Save report
-    report.add_htmls_to_section('{}s of data rejected.'.format(rejected_duration(raw)), 'Total rejected duration', state+block)
+    report.add_htmls_to_section('{}s of data rejected (threshold = {:.0f} fT).'.format(rejected_duration(raw, ica.labels_['raw_rejection'])), 'Total rejected duration', state+block)
     report.add_figs_to_section(list(figs.values()), list(figs.keys()), state+block)
     if save_report:
         report_file = op.join(Analysis_path, task, 'meg', 'Reports', subject, '{}_Preprocessing-report.html'.format(subject))
@@ -919,7 +900,7 @@ def auto_annotate(raw, window=1, overlap=0, decim=1):
     else:
         raw.annotations = new_annot
     
-    return raw
+    return raw, reject
 
 
 Pre = lambda x: detrend((x-np.mean(x))/np.std(x))
