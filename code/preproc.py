@@ -214,7 +214,7 @@ def raw_ica(task, subject, state, block, raw=None, save=True, overwrite_fit=Fals
     return ica
 
 
-def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, save_report=True):
+def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, save_report=True, custom_args=dict()):
     """
     
     """
@@ -248,11 +248,13 @@ def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, 
     figs['{} ECG overlay'.format(state+block)] = ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'], show=False)
     
     # Save report
+    t_start = time.perf_counter()
     report.add_htmls_to_section('{}s of data rejected (threshold = {:.0f} fT).'.format(rejected_duration(raw, ica.labels_['raw_rejection'])), 'Total rejected duration', state+block)
     report.add_figs_to_section(list(figs.values()), list(figs.keys()), state+block)
+    logger.info("Editing Report took {:.1f}s.".format(time.perf_counter() - t_start))
     if save_report:
         report_file = op.join(Analysis_path, task, 'meg', 'Reports', subject, '{}_Preprocessing-report.html'.format(subject))
-        os.makedirs(op.dirname(reportfile), exist_ok=True)
+        os.makedirs(op.dirname(report_file), exist_ok=True)
         report.save(report_file, open_browser=False, overwrite=True)
     
     # ICA log
@@ -837,14 +839,16 @@ def check_ecg(task, subject, state, block, ecg_erp, raw, events, report=None, sa
         event_file = glob.glob(op.join(epochs_path, 'Events', subject, '{}_{}_{}*.eve'.format(subject, state, block)))[0]
         events = mne.read_events(event_file)
     
+    t_start = time.perf_counter()
     figs['{} Raw ECG'.format(state+block)] = ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None, title='Average pulse: {} bpm'.format(np.round(len(events[:,2]==999)*60/ecg.times[-1])))
 #    figs['{} Raw ECG'.format(state+block)].set_size_inches(16,4)
+    logger.info("Editing Report took {:.1f}s.".format(time.perf_counter() - t_start))
     
     # Save report
     report.add_figs_to_section(list(figs.values()), list(figs.keys()), state+block)
     if save_report:
         report_file = op.join(Analysis_path, task, 'meg', 'Reports', subject, '{}_ECG-report.html'.format(subject))
-        os.makedirs(op.dirname(reportfile), exist_ok=True)
+        os.makedirs(op.dirname(report_file), exist_ok=True)
         report.save(report_file, open_browser=False, overwrite=True)
     
     return report

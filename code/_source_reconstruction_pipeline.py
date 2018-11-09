@@ -107,7 +107,7 @@ for sub in subjects[:1]:
                 save_report = True
             
             raw_clean, raw, ica = process(task, sub, state, blk, EOG_score=.5, ICA_kwargs={'method':'picard', 'max_iter':1000}, custom_args=custom_args)
-            preproc_report = check_preproc(task, sub, state, blk, raw, ica, report=preproc_report, save_report=save_report)
+            preproc_report = check_preproc(task, sub, state, blk, raw, ica, report=preproc_report, save_report=save_report, custom_args=custom_args)
             
             events, event_id, ecg_erp = R_T_ECG_events(task, sub, state, blk, raw_clean, custom_args)
             ecg_report = check_ecg(task, sub, state, blk, ecg_erp, raw, events, report=ecg_report, save_report=save_report)
