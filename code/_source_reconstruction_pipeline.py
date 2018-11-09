@@ -78,7 +78,7 @@ from anat import BEM, src_space
 
 
 #%% PREPROCESSING
-from preproc import process, R_T_ECG_events, ECG_ICA, empty_room_covariance, check_ecg_epoch, auto_annotate
+from preproc import *
 
 custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM02': .15, 'FA04': .7}, 'force':True},
               '010': {'R_sign': -1, 'T_sign': 1, 'heart_rate': 77},#
@@ -90,27 +90,29 @@ custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM0
 for sub in subjects[:1]:
     if not op.isfile(op.join(Analysis_path, task, 'meg', 'Covariance', sub, 'empty_room-cov.fif')):
         empty_room_covariance(task, sub)
+    preproc_report = None
+    ecg_report = None
+    save_report = False
+    
     for state in states:
-        for blk in get_blocks(sub, task=task, state=state):
+        blocks = get_blocks(sub, task=task, state=state)
+        for blk in blocks:
             custom_args=dict()
             if sub in custom_ecg.keys():
                 custom_args = custom_ecg[sub].copy()
             if 'tstart' in custom_args.keys():
                 custom_args['tstart'] = custom_args['tstart'][state+blk]
-#            try:
-##            step='process'
-            raw = process(task, sub, state, blk, n_components=None, ica_rejection='auto', EOG_threshold=5, check_ica=True, overwrite_ica=True)#, custom_args=custom_args)
-##            step='epoch'
-            events, event_id = R_T_ECG_events(task, sub, state, blk, raw, custom_args)
-##            step='ECG check'
-            check_ecg_epoch(task, sub, state, blk, raw, events, save=True)
-            ica_ecg = ECG_ICA(task, sub, state, blk, raw, events, event_id, rejection='auto', ECG_threshold=.2, n_components=None)
             
-            no_ecg = raw.copy()
-            ica_ecg.apply(no_ecg)
-            no_ecg = auto_annotate(no_ecg)
-            raw.annotations = no_ecg.annotations
-            raw.save(raw.filenames[0], overwrite=True)
+            if state is states[-1] and blk is blocks[-1]:
+                save_report = True
+            
+            raw_clean, raw, ica = process(task, sub, state, blk, EOG_score=.5, ICA_kwargs={'method':'picard', 'max_iter':1000}, custom_args=custom_args)
+            preproc_report = check_preproc(task, sub, state, blk, raw, ica, report=preproc_report, save_report=save_report)
+            
+            events, event_id, ecg_erp = R_T_ECG_events(task, sub, state, blk, raw_clean, custom_args)
+            ecg_report = check_ecg(task, sub, state, blk, ecg_erp, raw, events, report=ecg_report, save_report=save_report)
+#            ica_ecg = ECG_ICA(task, sub, state, blk, raw, events, event_id, rejection='auto', ECG_threshold=.2, n_components=None)
+            
 #            except:
 #                with open('run.log', 'a') as fid:
 #                    fid.write(sub+'\t'+state+'\t'+blk+'\t'+'preproc bug\tstep\n')

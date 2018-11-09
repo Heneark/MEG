@@ -17,12 +17,10 @@ from mne.preprocessing.ctps_ import ctps
 from mne.preprocessing.ecg import _get_ecg_channel_index, _make_ecg
 from mne.utils import logger, sum_squared, verbose, warn
 import numpy as np
-import os.path as op
-from mne.externals.h5io import read_hdf5
 from scipy.signal import detrend, hilbert
 
-def qrs_custom(sfreq, ecg, custom_args, var=1/3, thresh_value='auto', levels=2.5, n_thresh=3,
-                 l_freq=8, h_freq=16, tstart=0, filter_length='10s', force=False):
+def qrs_custom(sfreq, ecg, var=1/3, thresh_value='auto', levels=2.5, n_thresh=3,
+                 l_freq=8, h_freq=16, filter_length='10s', R_sign=0, ideal_rate=0, tstart=0, force=False):
     """
     Copy-paste from mne.preprocessing.ecg, with a few modifications:
         R_sign: instead of taking abs() of the ecg, provide the expected sign of the R peak to turn it upwards.
@@ -62,11 +60,6 @@ def qrs_custom(sfreq, ecg, custom_args, var=1/3, thresh_value='auto', levels=2.5
     events : array
         Indices of ECG peaks
     """
-    R_sign = custom_args['R_sign'] if 'R_sign' in custom_args.keys() else 0
-    ideal_rate = custom_args['heart_rate'] if 'heart_rate' in custom_args.keys() else 0
-    if 'tstart' in custom_args.keys(): tstart = custom_args['tstart']
-    if 'force' in custom_args.keys(): force = custom_args['force']
-    
     if ideal_rate:
         period = sfreq * 60 / ideal_rate
         win_size = int(round(period * var))
@@ -228,9 +221,9 @@ def custom_ecg_events(raw, custom_args, event_id=999, ch_name=None, tstart=0.0,
         ecg, times = _make_ecg(raw, None, None, verbose=verbose)
 
     # detecting QRS and generating event file
-    ecg_events = qrs_custom(raw.info['sfreq'], ecg.ravel(), custom_args, tstart=tstart,
+    ecg_events = qrs_custom(raw.info['sfreq'], ecg.ravel(),
                             thresh_value=qrs_threshold, l_freq=l_freq,
-                            h_freq=h_freq, filter_length=filter_length)
+                            h_freq=h_freq, filter_length=filter_length, **custom_args)
 
     n_events = len(ecg_events)
     average_pulse = n_events * 60.0 / (times[-1] - times[0])
@@ -494,43 +487,3 @@ def custom_bads_ecg(self, inst, custom_args, ch_name=None, threshold=None, start
         ch_name = 'ECG-MAG'
     self.labels_['ecg/%s' % ch_name] = list(ecg_idx)
     return self.labels_['ecg'], scores, pulse
-
-
-def open_report(fname, **params):
-    """Read a saved report or, if it doesn't exist yet, create a new one.
-    The returned report can be used as a context manager, in which case any
-    changes to the report are saved when exiting the context block.
-    Parameters
-    ----------
-    fname : str
-        The file containing the report, stored in the HDF5 format. If the file
-        does not exist yet, a new report is created that will be saved to the
-        specified file.
-    **params : list of parameters
-        When creating a new report, any named parameters other than ``fname``
-        are passed to the `__init__` function of the `Report` object. When
-        reading an existing report, the parameters are checked with the
-        loaded report and an exception is raised when they don't match.
-    Returns
-    -------
-    report : instance of Report
-        The report.
-    """
-    if op.exists(fname):
-        # Check **params with the loaded report
-        state = read_hdf5(fname, title='mnepython')
-        for param in params.keys():
-            if param not in state:
-                raise ValueError('The loaded report has no attribute %s' %
-                                 param)
-            if params[param] != state[param]:
-                raise ValueError("Attribute '%s' of loaded report does not "
-                                 "match the given parameter." % param)
-        report = Report()
-        report.__setstate__(state)
-    else:
-        report = Report(**params)
-    # Keep track of the filename in case the Report object is used as a context
-    # manager.
-    report._fname = fname
-    return report

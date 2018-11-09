@@ -37,6 +37,7 @@ except:
 
 
 import mne
+from mne.utils import logger
 from mne.time_frequency import psd_welch
 from mne.preprocessing import ICA
 from mne.preprocessing import create_eog_epochs, create_ecg_epochs, read_ica

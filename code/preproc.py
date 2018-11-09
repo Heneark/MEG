@@ -43,7 +43,26 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 #==============================================================================
 
 
-def process(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_args=dict(), update_HPI=True, precision='0.5cm', opt='start', report=None):
+def load_raw(task, subject, block):
+    """
+    
+    """
+    raw = mne.io.read_raw_ctf(get_rawpath(subject, task, block), preload=True, clean_names=True)
+    
+    raw.info['subject_info'].update({'sub':subject})
+    raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
+    raw.pick_types(meg=True, ecg=True, eog=True, stim=True)
+    
+    # Crop recording
+    events = mne.find_events(raw)
+    start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0 #Crop recording if first event is less than 2 min after the beginning
+    end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[-1][0]] > 300 else None #Crop recording if last event is more than 5 min after the beginning
+    raw.crop(tmin=start, tmax=end)
+    
+    return raw
+
+
+def process(task, subject, state, block, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, EOG_threshold=3, EOG_min=1, EOG_max=None, EOG_score=None, ECG_threshold=.25, ECG_max=3, update_HPI=True, HPI_kwargs=dict(), ICA_kwargs=dict(), custom_args=dict()):
     """
     Run preprocessing and return preprocessed raw data.
     If check_ica, plot overlay and properties of ECG and EOG components (default to True).
@@ -56,14 +75,14 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
         ica: ICA object. If None (default), will be loaded according to previous parameters. ICA parameters:
             ica_rejection: epoch rejection threshold (default to 4000 fT for magnetometers)
             ECG_threshold: ECG artifact detection threshold (mne default to 0.25)
-            ECG_threshold: ECG artifact detection threshold (mne default to 3.0)
+            EOG_threshold: EOG artifact detection threshold (mne default to 3.0)
         low_pass: frequency (in Hz) for low-pass filtering (default to None)
         high_pass: frequency (in Hz) for high-pass filtering (default to 0.5)
         notch: frequency (in Hz) or list of frequencies to notch filter (set to np.array([]) for no notch filtering)
         update_HPI:
     """
     # Load data
-    raw = mne.io.read_raw_ctf(get_rawpath(subject, task, block), preload=True)
+    raw = mne.io.read_raw_ctf(get_rawpath(subject, task, block), preload=True, clean_names=True)
     
     raw.info['subject_info'].update({'sub':subject})
     raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
@@ -71,7 +90,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     
     # Update head coordinates
     if update_HPI:
-        raw = HPI_update(task, subject, block, raw.copy(), precision=precision, opt=opt, reject_head_mvt=True)
+        raw = HPI_update(task, subject, block, raw.copy(), **HPI_kwargs)
     
     # Crop recording
     events = mne.find_events(raw)
@@ -79,7 +98,7 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[-1][0]] > 300 else None #Crop recording if last event is more than 5 min after the beginning
     raw.crop(tmin=start, tmax=end)
     
-    ica = raw_ica(task, subject, state, block, raw=raw.copy(), n_components=n_components, save=save_ica, fit_ica=fit_ica, ica_rejection=ica_rejection, EOG_threshold=EOG_threshold)
+    ica = raw_ica(task, subject, state, block, raw.copy(), **ICA_kwargs)
     
     # Filter
     if notch.size:
@@ -96,11 +115,10 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     # Fix number of artifactual components
     ica.labels_['ecg'] = ica.labels_['ecg'][:ECG_max]
     ica.labels_['eog'] = ica.labels_['eog'][:EOG_max]
-    if EOG_min and not ica.labels_['eog']:
-        ica.labels_['eog'] = np.argsort(np.abs(ica.labels_['eog_scores']))[::-1].tolist()[:EOG_min]
-    
     if EOG_score:
         ica.labels_['eog'] = sorted(np.where(np.abs(ica.labels_['eog_scores']) >= EOG_score)[0])
+    if EOG_min and not ica.labels_['eog']:
+        ica.labels_['eog'] = np.argsort(np.abs(ica.labels_['eog_scores']))[::-1].tolist()[:EOG_min]
     
     # Save artefact detection
     ica.save(ica.labels_['filename'])
@@ -116,47 +134,14 @@ def process(task, subject, state, block, n_components=.975, ica=None, check_ica=
     os.makedirs(op.dirname(raw_file), exist_ok=True)
     raw.save(raw_file, overwrite=True)
     
-    # Preprocessing report
-    if not report:
-        report = Report(subject=subject, title='{} {} {} - Preprocessing report'.format(subject, state, block), image_format='svg')
-    figs = dict()
-    
-    # EOG plots
-    check_eog = create_eog_epochs(raw.copy(), reject=ica.labels_['rejection'])
-    
-    figs['{} EOG scores'.format(state+block)] = ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog', axhline=EOG_score, figsize=(8,2), show=False)
-    for comp in ica.labels_['eog']:
-        figs['{} EOG {}'.format(state+block, comp)] = ica.plot_properties(check_eog, picks=comp, show=False)
-    figs['{} EOG overlay'.format(state+block)] = ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'], show=False)
-    
-    # ECG Plots
-    if custom_args:
-        check_ecg, pulse = custom_ecg_epochs(raw.copy(), custom_args, reject=ica.labels_['rejection'])
-    else:
-        check_ecg = create_ecg_epochs(raw.copy(), reject=ica.labels_['rejection'])
-    
-    figs['{} ECG scores'.format(state+block)] = ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ECG_threshold, figsize=(8,2), show=False)
-    for comp in ica.labels_['ecg']:
-        figs['{} ECG {}'.format(state+block, comp)] = ica.plot_properties(check_ecg, picks=comp, show=False)
-    figs['{} ECG overlay'.format(state+block)] = ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'], show=False)
-    
-    # Save report
-    report.add_figs_to_section(list(figs.values()), list(figs.keys()), state+block)
-#    report_file = op.join(Analysis_path, task, 'meg', 'Reports', subject, )
-#    os.makedirs(op.dirname(reportfile), exist_ok=True)
-#    overwrite_report = block == next(iter(get_blocks(subject, task=task)))
-#    report.save(report_file, open_browser=False, overwrite=overwrite_report)
-    
-    # Apply ICA
-    ica.apply(raw, exclude=ica.labels_['eog']+ica.labels_['ecg'])
-    return raw_clean, report
+    return raw_clean, raw, ica
 
 
 # # /!\ Custom attributes (e.g., ica.scores_) are not kept upon .save(), which calls _write_ica() whose dict ica_misc is not editable on call.
 # # => exploit the attribute labels_
 # # # /!\ Numpy arrays are not supported --> convert to type list with .tolist()
 
-def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_components=None, method='fastica', ica_rejection='auto', EOG_threshold=3, EOG_min=1, EOG_max=2, max_iter=300, custom_args=dict()):
+def raw_ica(task, subject, state, block, raw=None, save=True, overwrite_fit=False, n_components=None, method='fastica', ica_rejection='auto', max_iter=300):
     """
     Fit ICA on raw MEG data and return ICA object.
     If save, save ICA, save ECG and EOG artifact scores plots, and write log (default to True).
@@ -196,19 +181,13 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         os.makedirs(ICA_path)
     ICA_file = op.join(ICA_path, '{}_{}_{}-{}_raw-ica.fif'.format(subject, state, block, method))
     
-    if op.isfile(ICA_file) and not fit_ica:
+    if op.isfile(ICA_file) and not overwrite_fit:
         ica = read_ica(ICA_file)
         return ica
     
     ica = ICA(n_components=n_components, method=method, max_iter=max_iter) #create ICA object
     ica.drop_inds_ = []
     ica.labels_ = dict()
-    
-    # ICA log
-    ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
-    if save and not op.isfile(ICA_log):
-        with open(ICA_log, 'w') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('date','time','subject','state','block','start','end','n_components','n_selected_comps','ncomp_EOG','rejection','dropped_epochs'))
     
     # Filter for ICA
     if not raw:
@@ -220,7 +199,7 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
         ica_rejection = get_rejection_threshold(auto_epochs)
     
     # Fit ICA
-    ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
+    ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True, ref_meg=False)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
     ica.labels_['rejection'] = ica_rejection
     ica.labels_['drop_inds_'] = ica.drop_inds_
     ica.labels_['filename'] = ICA_file
@@ -248,12 +227,61 @@ def raw_ica(task, subject, state, block, raw=None, save=True, fit_ica=False, n_c
     # Save ICA
     if save:
         ica.save(ICA_file)
-        # Write ICA log
-        with open(ICA_log, 'a') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(time.strftime('%Y_%m_%d\t%H:%M:%S',time.localtime()),subject,state,block,int(round(start)),int(round(end)) if end else int(round(raw.times[-1])),n_components if n_components else 'all',ica.n_components_,len(ica.labels_['eog']),ica.labels_['rejection'],len(ica.labels_['drop_inds_'])))
     
     return ica
 
+
+def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, save_report=True):
+    """
+    
+    """
+    # Initialisation
+    if not raw:
+        raw = load_preproc(task, subject, state, block, exclude_eog=False, exclude_ecg=False)
+    if not ica:
+        ica = raw_ica(task, subject, state, block)
+    if not report:
+        report = Report(subject=subject, title='{} {} {} - Preprocessing report'.format(subject, state, block), image_format='svg')
+    
+    figs = dict()
+    
+    # EOG plots
+    check_eog = create_eog_epochs(raw.copy(), reject=ica.labels_['rejection'])
+    
+    figs['{} EOG scores'.format(state+block)] = ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog', axhline=EOG_score, figsize=(8,2), show=False)
+    for comp in ica.labels_['eog']:
+        figs['{} EOG {}'.format(state+block, comp)] = ica.plot_properties(check_eog, picks=comp, show=False)
+    figs['{} EOG overlay'.format(state+block)] = ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'], show=False)
+    
+    # ECG Plots
+    if custom_args:
+        check_ecg, pulse = custom_ecg_epochs(raw.copy(), custom_args, reject=ica.labels_['rejection'])
+    else:
+        check_ecg = create_ecg_epochs(raw.copy(), reject=ica.labels_['rejection'])
+    
+    figs['{} ECG scores'.format(state+block)] = ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ECG_threshold, figsize=(8,2), show=False)
+    for comp in ica.labels_['ecg']:
+        figs['{} ECG {}'.format(state+block, comp)] = ica.plot_properties(check_ecg, picks=comp, show=False)
+    figs['{} ECG overlay'.format(state+block)] = ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'], show=False)
+    
+    # Save report
+    report.add_htmls_to_section('{}s of data rejected.'.format(rejected_duration(raw)), 'Total rejected duration', state+block)
+    report.add_figs_to_section(list(figs.values()), list(figs.keys()), state+block)
+    if save_report:
+        report_file = op.join(Analysis_path, task, 'meg', 'Reports', subject, '{}_Preprocessing-report.html'.format(subject))
+        os.makedirs(op.dirname(reportfile), exist_ok=True)
+        report.save(report_file, open_browser=False, overwrite=True)
+    
+    # ICA log
+    ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
+    if not op.isfile(ICA_log):
+        with open(ICA_log, 'w') as fid:
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('subject','state','block','start','end','n_selected_comps','ncomp_EOG','ncomp_ECG','rejection /fT','dropped_epochs'))
+    with open(ICA_log, 'a') as fid:
+        fid.write("{}\t{}\t{}\t{:.3f}\t{:.3f}\t{}\t{}\t{}\t{.0f}\t{}\n".format(subject,state,block,raw.first_samp/raw.info['sfreq'],raw.times[-1]+raw.first_samp/raw.info['sfreq'],ica.n_components_,len(ica.labels_['eog']),len(ica.labels_['ecg']),ica.labels_['rejection']*1e15,len(ica.labels_['drop_inds_'])))
+        
+    return report
+    
 
 def process0(task, subject, state, block, n_components=.975, ica=None, check_ica=True, save_ica=True, overwrite_ica=False, fit_ica=False, ica_rejection={'mag':4000e-15}, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, ECG_threshold=0.25, EOG_threshold=3, custom_args=dict(), update_HPI=True, precision='0.5cm', opt='start'):
     """
@@ -637,6 +665,16 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     else:
         epo = create_ecg_epochs(ecg, reject_by_annotation=False, event_id=R_id)
     
+    # Save R times
+    R_times_file = op.join(Analysis_path, 'MEG', 'meta', 'ECG_R_times.tsv')
+    if not op.isfile(timing_file):
+        with open(timing_file, 'w') as fid:
+            fid.write('subject\tstate\tblock\tTime\n')
+    with open(timing_file, 'a') as fid:
+        for t in epo.times[:,0]:
+            fid.write("{}\t{}\t{}\t{:.3f}\n".format(subject, state, block, raw.times[t]))
+    np.savetxt(op.join(Analysis_path, 'MEG', 'meta', 'ECG_R_times.tsv'), raw.times[epo.events[:,0]], delimiter='\t', header='Timing /s')
+    
     # Get the average ECG waveform
     epo.set_channel_types({ch:'eeg' for ch in ecg.ch_names})
     erp = epo.average()
@@ -693,7 +731,7 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     os.makedirs(op.dirname(event_file), exist_ok=True)
     mne.write_events(event_file, events)
     
-    return events, event_id
+    return events, event_id, erp_pos
 
 
 def ECG_ICA(task, subject, state, block, raw=None, events=np.array([]), event_id=None, rejection={'mag': 7000e-15}, save=True, fit_ica=False, n_components=0.975, method='picard', Rwin=-.05, Twin=0, ECG_threshold=0.25, ECG_max=3):
@@ -785,45 +823,48 @@ def ECG_ICA(task, subject, state, block, raw=None, events=np.array([]), event_id
     return ica
 
 
-def check_ecg_epoch(task, subject, state, block, raw=None, events=np.array([]), synthetic=True, save=False):
+def check_ecg(task, subject, state, block, ecg_erp, raw, events, report=None, save_report=True):
     """
     Plot ECG along with events used for epoching. If synthetic, create and plot a synthetic ECG channel as well.
     """
-    epochs_path = op.join(Analysis_path, task, 'meg', 'Epochs')
-    os.makedirs(op.join(epochs_path, subject), exist_ok=True)
-    plot_path = op.join(Analysis_path, task, 'meg', 'Plots', 'Preprocessing', subject)
-    os.makedirs(plot_path, exist_ok=True)
+    if not report:
+        report = Report(subject=subject, title='{} {} {} - Preprocessing report'.format(subject, state, block), image_format='svg')
+    figs = dict()
+    
+    figs['{} ECG waveform'.format(state+block)] = ecg_erp.plot()
     
     # Load data
     if not raw:
-        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
-        raw = mne.io.read_raw_fif(raw_file, preload=True)
+        raw = load_preproc(task, subject, state, block, exclude_eog=True, exclude_ecg=False)
     
     ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
     
-    if synthetic:
-        # Add synthetic channel as in MNE's create_ecg_epochs():
-        ecg_syn = raw.get_data(picks=mne.pick_types(raw.info, meg='mag', ref_meg=False)).mean(axis=0)
-        ecg_raw = mne.io.RawArray(ecg_syn[None], mne.create_info(ch_names=['ECG-SYN'], sfreq=raw.info['sfreq'], ch_types=['mag']))
-        ignore = ['ch_names', 'chs', 'nchan', 'bads']
-        for k, v in raw.info.items():
-            if k not in ignore:
-                ecg_raw.info[k] = v
-        
-        ecg.add_channels([ecg_raw])
+    # Add synthetic channel as in MNE's create_ecg_epochs():
+    ecg_syn = raw.get_data(picks=mne.pick_types(raw.info, meg='mag', ref_meg=False)).mean(axis=0)
+    ecg_raw = mne.io.RawArray(ecg_syn[None], mne.create_info(ch_names=['ECG-SYN'], sfreq=raw.info['sfreq'], ch_types=['mag']))
+    ignore = ['ch_names', 'chs', 'nchan', 'bads']
+    for k, v in raw.info.items():
+        if k not in ignore:
+            ecg_raw.info[k] = v
+    
+    ecg.add_channels([ecg_raw])
     
     if not events.size:
         #Load events and extract event ids
         event_file = glob.glob(op.join(epochs_path, 'Events', subject, '{}_{}_{}*.eve'.format(subject, state, block)))[0]
         events = mne.read_events(event_file)
     
-    fig = ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None, title='Average pulse: {} bpm'.format(np.round(len(events[:,2]==999)*60/ecg.times[-1])))
-    fig.set_size_inches(16,4)
-    if save:
-        plt.savefig(op.join(plot_path, '{}_{}_{}-ECG.png'.format(subject, state, block)))#, transparent=True)
-        plt.close()
+    figs['{} Raw ECG'.format(state+block)] = ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None, title='Average pulse: {} bpm'.format(np.round(len(events[:,2]==999)*60/ecg.times[-1])))
+#    figs['{} Raw ECG'.format(state+block)].set_size_inches(16,4)
     
-    return ecg, fig
+    # Save report
+    report.add_figs_to_section(list(figs.values()), list(figs.keys()), state+block)
+    if save_report:
+        report_file = op.join(Analysis_path, task, 'meg', 'Reports', subject, '{}_ECG-report.html'.format(subject))
+        os.makedirs(op.dirname(reportfile), exist_ok=True)
+        report.save(report_file, open_browser=False, overwrite=True)
+    
+    return report
 
 
 def empty_room_covariance(task:str, subject:str, notch=inspect.signature(process).parameters['notch'].default, high_pass=inspect.signature(process).parameters['high_pass'].default, low_pass=inspect.signature(process).parameters['low_pass'].default):
@@ -833,7 +874,7 @@ def empty_room_covariance(task:str, subject:str, notch=inspect.signature(process
     Ouput: Analyses/<task>/meg/Covariance/<subject>/empty_room-cov.fif
     """
     # Load noise data
-    raw_empty_room = mne.io.read_raw_ctf(get_rawpath(subject, noise=True), preload=True)
+    raw_empty_room = mne.io.read_raw_ctf(get_rawpath(subject, noise=True), preload=True, clean_names=True)
     
     # Filter
     if notch.size:
@@ -849,24 +890,27 @@ def empty_room_covariance(task:str, subject:str, notch=inspect.signature(process
     mne.write_cov(op.join(cov_path, 'empty_room-cov.fif'), noise_cov)
 
 
-def Pre(x):
-    return detrend((x-np.mean(x))/np.std(x))
-
-
 def auto_annotate(raw, window=1, overlap=0, decim=1):
     """
+    Annotate Raw data based on AutoReject's global rejection threshold computation.
+    'bad AutoReject' annotations are segments of length window [sec] overlapping by overlap [sec].
     
+    Operates in-place.
     """
-    epochs = mne.Epochs(raw.copy(), make_fixed_length_events(raw.copy(), 111, duration=window-overlap, first_samp=False), tmin=0, tmax=window, baseline=None, picks=mne.pick_types(raw.info, ref_meg=False), reject=None)
-    events = epochs.events
+    epochs = mne.Epochs(raw.copy(), make_fixed_length_events(raw.copy(), 111, duration=window-overlap, first_samp=False), tmin=0, tmax=window, baseline=None, picks=mne.pick_types(raw.info, ref_meg=False), preload=True, reject=None)
+    events = epochs.copy().events
     
-    epochs_clean = epochs.copy().drop_bad()
-    already_rejected = events[np.where(epochs_clean.drop_log)][:,0]
+    epochs_clean = epochs.copy()
+    epochs_clean.drop_bad()
+    already_rejected = set(np.where(epochs_clean.drop_log)[0])
     
+    t_start = time.perf_counter()
     reject = get_rejection_threshold(epochs, decim=decim)
+    logger.info("Rejection threshold computation took {:.1f}s.".format(time.perf_counter() - t_start))
     epochs.drop_bad(reject = reject)
-    rejected = events[np.where(epochs.drop_log)][:,0] #Bug with NO_DATA
-    np.array(list(set(rejected) - set(already_rejected)))
+    
+    newly_rejected = set(np.where(epochs.drop_log)[0]) - already_rejected
+    rejected = events[tuple(newly_rejected),0]
     
     new_annot = mne.Annotations(raw.times[rejected], np.full(rejected.shape, window), np.full(rejected.shape, 'bad AutoReject'))
     if raw.annotations:
@@ -878,14 +922,6 @@ def auto_annotate(raw, window=1, overlap=0, decim=1):
     return raw
 
 
-def rejected_duration(raw):
-    """
-    
-    """
-    full = raw.get_data().shape[-1]/raw.info['sfreq']
-    clean = raw.get_data(reject_by_annotation='omit').shape[-1]/raw.info['sfreq']
-    
-    return full-clean
-
+Pre = lambda x: detrend((x-np.mean(x))/np.std(x))
 
 rejected_duration = lambda raw: raw.get_data().shape[-1]/raw.info['sfreq'] - raw.get_data(reject_by_annotation='omit').shape[-1]/raw.info['sfreq']

@@ -188,7 +188,7 @@ def get_rawpath(subj, task=None, block=None, noise=False, NoiseBase = op.join(Ra
 
 #GET AN ORDERED DICT OF A SUBJECT'S BLOCKS AND CORRESPONDING STATES
 #==============================================================================
-def get_blocks(subj, state=None, task=None, protocol=None, pathBase = Analysis_path, include_all=False):
+def get_blocks(subj, state=None, task=None, protocol=None, pathBase=Analysis_path, return_list=True, include_all=False):
      
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
 
@@ -205,7 +205,10 @@ def get_blocks(subj, state=None, task=None, protocol=None, pathBase = Analysis_p
          
      if protocol:
          ld = ld[ld.protocol == protocol]
-         
+     
+     if return_list:
+         return list(ld['block'])
+     
      blockstate = dict()
      
      for k in range(ld.shape[0]):
@@ -296,31 +299,12 @@ def expertise(subject):
     return group
 
 
-def load_raw(task, subject, block):
-    """
-    
-    """
-    raw = mne.io.read_raw_ctf(get_rawpath(subject, task, block), preload=True)
-    
-    raw.info['subject_info'].update({'sub':subject})
-    raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
-    raw.pick_types(meg=True, ecg=True, eog=True, stim=True)
-    
-    # Crop recording
-    events = mne.find_events(raw)
-    start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0 #Crop recording if first event is less than 2 min after the beginning
-    end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[-1][0]] > 300 else None #Crop recording if last event is more than 5 min after the beginning
-    raw.crop(tmin=start, tmax=end)
-    
-    return raw
-    
-
-def load_preproc(task, subject, state, block, keep_ecg=False):
+def load_preproc(task, subject, state, block, exclude_eog=True, exclude_ecg=False):
     """
     
     """
     raw = mne.io.read_raw_fif(op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block)), preload=True)
-    if not keep_ecg:
-        ica = mne.preprocessing.read_ica(op.join(Analysis_path, task, 'meg', 'ICA', subject, '{}_{}_{}-ECG-ica.fif'.format(subject, state, block)))
-        ica.apply(raw)
+    if exclude_eog or exclude_ecg:
+        ica = raw_ica(task, subject, state, block)
+        ica.apply(raw, exclude = ica.labels_['eog'] if exclude_eog else [] + ica.labels_['ecg'] if exclude_ecg else [])
     return raw
