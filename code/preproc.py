@@ -127,6 +127,8 @@ def process(task, subject, state, block, notch=np.arange(50,301,50), high_pass=0
     raw.annotations = raw_clean.annotations
     
     # Save artefact detection
+    ica.labels_['ECG_threshold'] = ECG_threshold
+    ica.labels_['EOG_threshold'] = EOG_score if EOG_score else EOG_threshold
     ica.labels_['raw_rejection'] = threshold
     ica.save(ica.labels_['filename'])
     
@@ -229,7 +231,7 @@ def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, 
     # EOG plots
     check_eog = create_eog_epochs(raw.copy(), reject=ica.labels_['rejection'])
     
-    figs['{} EOG scores'.format(state+block)] = ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog', axhline=EOG_score, figsize=(8,2), show=False)
+    figs['{} EOG scores'.format(state+block)] = ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog', axhline=ica.labels_['EOG_threshold'] if ica.labels_['EOG_threshold'] <= 1 else None, figsize=(8,2), show=False)
     for comp in ica.labels_['eog']:
         figs['{} EOG {}'.format(state+block, comp)] = ica.plot_properties(check_eog, picks=comp, show=False)
     figs['{} EOG overlay'.format(state+block)] = ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'], show=False)
@@ -240,7 +242,7 @@ def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, 
     else:
         check_ecg = create_ecg_epochs(raw.copy(), reject=ica.labels_['rejection'])
     
-    figs['{} ECG scores'.format(state+block)] = ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ECG_threshold, figsize=(8,2), show=False)
+    figs['{} ECG scores'.format(state+block)] = ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ica.labels_['ECG_threshold'], figsize=(8,2), show=False)
     for comp in ica.labels_['ecg']:
         figs['{} ECG {}'.format(state+block, comp)] = ica.plot_properties(check_ecg, picks=comp, show=False)
     figs['{} ECG overlay'.format(state+block)] = ica.plot_overlay(check_ecg.average(), exclude=ica.labels_['ecg'], show=False)

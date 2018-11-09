@@ -20,7 +20,7 @@ import numpy as np
 from scipy.signal import detrend, hilbert
 
 def qrs_custom(sfreq, ecg, var=1/3, thresh_value='auto', levels=2.5, n_thresh=3,
-                 l_freq=8, h_freq=16, filter_length='10s', R_sign=0, ideal_rate=0, tstart=0, force=False):
+                 l_freq=8, h_freq=16, filter_length='10s', R_sign=0, T_sign=0, heart_rate=0, tstart=0, force=False):
     """
     Copy-paste from mne.preprocessing.ecg, with a few modifications:
         R_sign: instead of taking abs() of the ecg, provide the expected sign of the R peak to turn it upwards.
@@ -60,8 +60,8 @@ def qrs_custom(sfreq, ecg, var=1/3, thresh_value='auto', levels=2.5, n_thresh=3,
     events : array
         Indices of ECG peaks
     """
-    if ideal_rate:
-        period = sfreq * 60 / ideal_rate
+    if heart_rate:
+        period = sfreq * 60 / heart_rate
         win_size = int(round(period * var))
         print('Window size: {}\nJump size: {}'.format(win_size/sfreq, int(round(period - win_size / 2))/sfreq))
     else:
@@ -128,7 +128,7 @@ def qrs_custom(sfreq, ecg, var=1/3, thresh_value='auto', levels=2.5, n_thresh=3,
                                      1).astype(int)))
                 numcross.append(nx)
                 rms.append(np.sqrt(sum_squared(window) / window.size))
-                ii += int(round(max_time + period - win_size / 2)) if ideal_rate else win_size
+                ii += int(round(max_time + period - win_size / 2)) if heart_rate else win_size
             else:
                 ii += 1
 
@@ -152,12 +152,12 @@ def qrs_custom(sfreq, ecg, var=1/3, thresh_value='auto', levels=2.5, n_thresh=3,
 
     # now find heart rates that seem reasonable (infant through adult athlete)
     idx = np.where(np.logical_and(rates <= 160., rates >= 40.))[0]
-    if not ideal_rate:
+    if not heart_rate:
         if len(idx) > 0:
-            ideal_rate = np.median(rates[idx])  # get close to the median
+            heart_rate = np.median(rates[idx])  # get close to the median
         else:
-            ideal_rate = 80.  # get close to a reasonable default
-    idx = np.argmin(np.abs(rates - ideal_rate))
+            heart_rate = 80.  # get close to a reasonable default
+    idx = np.argmin(np.abs(rates - heart_rate))
     clean_events = clean_events[idx]
     return clean_events
 
