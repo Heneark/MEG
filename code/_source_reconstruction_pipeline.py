@@ -80,6 +80,7 @@ from anat import BEM, src_space
 #%% PREPROCESSING
 from preproc import *
 
+ICA_kwargs={'method':'picard', 'max_iter':1000}
 custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM02': .15, 'FA04': .7}, 'force':True},
               '010': {'R_sign': -1, 'T_sign': 1, 'heart_rate': 77},#
               '012': {'R_sign': -1, 'T_sign': 1},#, 'heart_rate': 77
@@ -106,11 +107,11 @@ for sub in subjects[:1]:
             if state is states[-1] and blk is blocks[-1]:
                 save_report = True
             
-            raw_clean, raw, ica = process(task, sub, state, blk, EOG_score=.5, ICA_kwargs={'method':'picard', 'max_iter':1000}, custom_args=custom_args)
-            preproc_report = check_preproc(task, sub, state, blk, raw, ica, report=preproc_report, save_report=save_report, custom_args=custom_args)
+            raw_clean, raw, ica = process(task, sub, state, blk, EOG_score=.5, ICA_kwargs=ICA_kwargs, custom_args=custom_args)
+            preproc_report = check_preproc(task, sub, state, blk, raw, ica, report=preproc_report, save_report=save_report, custom_args=custom_args, ICA_kwargs=ICA_kwargs)
             
             events, event_id, ecg_erp = R_T_ECG_events(task, sub, state, blk, raw_clean, custom_args)
-            ecg_report = check_ecg(task, sub, state, blk, ecg_erp, raw, events, report=ecg_report, save_report=save_report)
+            ecg_report = check_ecg(task, sub, state, blk, ecg_erp, raw, events, report=ecg_report, save_report=save_report, ICA_kwargs=ICA_kwargs)
 #            ica_ecg = ECG_ICA(task, sub, state, blk, raw, events, event_id, rejection='auto', ECG_threshold=.2, n_components=None)
             
 #            except:

@@ -299,12 +299,12 @@ def expertise(subject):
     return group
 
 
-def load_preproc(task, subject, state, block, exclude_eog=True, exclude_ecg=False):
+def load_preproc(task, subject, state, block, exclude_eog=True, exclude_ecg=False, ICA_kwargs=dict()):
     """
     
     """
     raw = mne.io.read_raw_fif(op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block)), preload=True)
     if exclude_eog or exclude_ecg:
-        ica = raw_ica(task, subject, state, block)
+        ica = raw_ica(task, subject, state, block, **ICA_kwargs)
         ica.apply(raw, exclude = ica.labels_['eog'] if exclude_eog else [] + ica.labels_['ecg'] if exclude_ecg else [])
     return raw
