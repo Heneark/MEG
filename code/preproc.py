@@ -263,7 +263,7 @@ def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, 
         with open(ICA_log, 'w') as fid:
             fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('subject','state','block','start','end','n_selected_comps','ncomp_EOG','ncomp_ECG','rejection /fT','dropped_epochs'))
     with open(ICA_log, 'a') as fid:
-        fid.write("{}\t{}\t{}\t{:.3f}\t{:.3f}\t{}\t{}\t{}\t{.0f}\t{}\n".format(subject,state,block,raw.first_samp/raw.info['sfreq'],raw.times[-1]+raw.first_samp/raw.info['sfreq'],ica.n_components_,len(ica.labels_['eog']),len(ica.labels_['ecg']),ica.labels_['rejection']['mag']*1e15,len(ica.labels_['drop_inds_'])))
+        fid.write("{}\t{}\t{}\t{:.3f}\t{:.3f}\t{}\t{}\t{}\t{:.0f}\t{}\n".format(subject,state,block,raw.first_samp/raw.info['sfreq'],raw.times[-1]+raw.first_samp/raw.info['sfreq'],ica.n_components_,len(ica.labels_['eog']),len(ica.labels_['ecg']),ica.labels_['rejection']['mag']*1e15,len(ica.labels_['drop_inds_'])))
         
     return report
     
@@ -659,7 +659,7 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
         with open(timing_file, 'w') as fid:
             fid.write('subject\tstate\tblock\tTime\n')
     with open(timing_file, 'a') as fid:
-        for t in epo.times[:,0]:
+        for t in epo.events[:,0]:
             fid.write("{}\t{}\t{}\t{:.3f}\n".format(subject, state, block, raw.times[t]))
     np.savetxt(op.join(Analysis_path, 'MEG', 'meta', 'ECG_R_times.tsv'), raw.times[epo.events[:,0]], delimiter='\t', header='Timing /s')
     
@@ -889,8 +889,9 @@ def auto_annotate(raw, window=1, overlap=0, decim=1):
     
     Operates in-place.
     """
-    epochs = mne.Epochs(raw.copy(), make_fixed_length_events(raw.copy(), 111, duration=window-overlap, first_samp=False), tmin=0, tmax=window, baseline=None, picks=mne.pick_types(raw.info, ref_meg=False), preload=True, reject=None)
+    epochs = mne.Epochs(raw.copy(), make_fixed_length_events(raw.copy(), 111, duration=window-overlap, first_samp=False), tmin=0, tmax=window, baseline=None, picks=mne.pick_types(raw.info, ref_meg=False), preload=False, reject=None)
     events = epochs.copy().events
+    epochs.load_data()
     
     epochs_clean = epochs.copy()
     epochs_clean.drop_bad()

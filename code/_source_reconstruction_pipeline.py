@@ -88,7 +88,7 @@ custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM0
               '057': {'R_sign': -1},
               '069': {'R_sign': -1}}#, 'heart_rate': 94
 
-for sub in subjects[:1]:
+for sub in subjects:
     if not op.isfile(op.join(Analysis_path, task, 'meg', 'Covariance', sub, 'empty_room-cov.fif')):
         empty_room_covariance(task, sub)
     preproc_report = None
