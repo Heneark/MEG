@@ -107,11 +107,21 @@ for sub in subjects:
             if state is states[-1] and blk is blocks[-1]:
                 save_report = True
             
-            raw_clean, raw, ica = process(task, sub, state, blk, EOG_score=.5, ICA_kwargs=ICA_kwargs, custom_args=custom_args)
-            preproc_report = check_preproc(task, sub, state, blk, raw, ica, report=preproc_report, save_report=save_report, custom_args=custom_args, ICA_kwargs=ICA_kwargs)
-            
-            events, event_id, ecg_erp = R_T_ECG_events(task, sub, state, blk, raw_clean, custom_args)
+            raw = load_raw(task, sub, blk)
+            events, event_id, ecg_erp = R_T_ECG_events(task, sub, state, blk, raw, custom_args=custom_args)
             ecg_report = check_ecg(task, sub, state, blk, ecg_erp, raw, events, report=ecg_report, save_report=save_report, ICA_kwargs=ICA_kwargs)
+            
+for sub in subjects:
+    preproc_report = None
+    ecg_report = None
+    save_report = False
+    for state in states:
+        blocks = get_blocks(sub, task=task, state=state)
+        for blk in blocks:
+            if state is states[-1] and blk is blocks[-1]:
+                save_report = True
+            raw_clean, raw, ica = process(task, sub, state, blk, EOG_score=.5, ICA_kwargs=ICA_kwargs)
+            preproc_report = check_preproc(task, sub, state, blk, raw, ica, report=preproc_report, save_report=save_report, ICA_kwargs=ICA_kwargs)
 #            ica_ecg = ECG_ICA(task, sub, state, blk, raw, events, event_id, rejection='auto', ECG_threshold=.2, n_components=None)
             
 #            except:

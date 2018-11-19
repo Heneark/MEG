@@ -43,7 +43,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 #==============================================================================
 
 
-def load_raw(task, subject, block):
+def load_raw(task, subject, block, crop=True):
     """
     
     """
@@ -54,15 +54,32 @@ def load_raw(task, subject, block):
     raw.pick_types(meg=True, ecg=True, eog=True, stim=True)
     
     # Crop recording
-    events = mne.find_events(raw)
-    start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0 #Crop recording if first event is less than 2 min after the beginning
-    end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[-1][0]] > 300 else None #Crop recording if last event is more than 5 min after the beginning
-    raw.crop(tmin=start, tmax=end)
+    if crop:
+        events = mne.find_events(raw)
+        start = raw.times[events[0][0]] if raw.times[events[0][0]] < 120 else 0 #Crop recording if first event is less than 2 min after the beginning
+        end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[-1][0]] > 300 else None #Crop recording if last event is more than 5 min after the beginning
+        raw.crop(tmin=start, tmax=end)
     
     return raw
 
 
-def process(task, subject, state, block, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, EOG_threshold=3, EOG_min=1, EOG_max=None, EOG_score=None, ECG_threshold=.25, ECG_max=3, update_HPI=True, HPI_kwargs=dict(), ICA_kwargs=dict(), custom_args=dict()):
+def load_ECG_events(task, subject, state, block, R_id=999, T_id=333, include=['R', 'T']):
+    """
+    
+    """
+    event_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Events', subject, '{}_{}_{}-ECG+R_{}+T_{}.eve'.format(subject, state, block, R_id if R_id else '*', T_id if T_id else '*')))[0]
+    event_id = {'R': R_id, 'T': T_id}
+    if not R_id and not T_id:
+        ids = op.splitext(op.basename(event_file))[0].split('+')[1:]
+        event_id = dict()
+        for i in ids:
+            k, v = i.split('_')
+            event_id[k] = int(v)
+    
+    events = mne.read_events(event_file, include=[event_id[k] for k in list(include)])
+    return events, event_id
+
+def process(task, subject, state, block, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, EOG_threshold=3, EOG_min=1, EOG_max=None, EOG_score=None, ECG_threshold=.25, ECG_max=3, update_HPI=True, HPI_kwargs=dict(), ICA_kwargs=dict()):
     """
     Run preprocessing and return preprocessed raw data.
     If check_ica, plot overlay and properties of ECG and EOG components (default to True).
@@ -107,10 +124,9 @@ def process(task, subject, state, block, notch=np.arange(50,301,50), high_pass=0
     
     # Detect EOG and ECG artifacts
     ica.labels_['eog_scores'] = ica.find_bads_eog(raw.copy(), threshold=EOG_threshold)[1].tolist()
-    if custom_args:
-        ica.labels_['ecg_scores'] = custom_bads_ecg(ica, raw.copy(), custom_args, threshold=ECG_threshold)[1].tolist()
-    else:
-        ica.labels_['ecg_scores'] = ica.find_bads_ecg(raw.copy(), threshold=ECG_threshold)[1].tolist()
+    events, event_id = load_ECG_events(task, subject, state, block, include='R')
+    ecg_epochs = mne.Epochs(raw.copy(), events=events, event_id=event_id, tmin=-.5, tmax=.5, baseline=None, preload=True)
+    ica.labels_['ecg_scores'] = ica.find_bads_ecg(ecg_epochs , threshold=ECG_threshold)[1].tolist()
     
     # Fix number of artifactual components
     ica.labels_['ecg'] = ica.labels_['ecg'][:ECG_max]
@@ -236,10 +252,8 @@ def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, 
     figs['{} EOG overlay'.format(state+block)] = ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'], show=False)
     
     # ECG Plots
-    if custom_args:
-        check_ecg, pulse = custom_ecg_epochs(raw.copy(), custom_args, reject=ica.labels_['rejection'])
-    else:
-        check_ecg = create_ecg_epochs(raw.copy(), reject=ica.labels_['rejection'])
+    events, event_id = load_ECG_events(task, subject, state, block, include='R')
+    check_ecg = mne.Epochs(raw.copy(), events=events, event_id=event_id, tmin=-.5, tmax=.5, baseline=None, reject=ica.labels_['rejection'], preload=True)
     
     figs['{} ECG comp scores'.format(state+block)] = ica.plot_scores(ica.labels_['ecg_scores'], exclude=ica.labels_['ecg'], labels='ecg', axhline=ica.labels_['ECG_threshold'], figsize=(8,2), show=False)
     for comp in ica.labels_['ecg']:
@@ -632,18 +646,12 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     """
     From raw data containing at least the ECG channel, returns events and event_id corresponding to both R and T peaks. If save=True, saves their timing in 'Analyses/<task>/meg/Epochs/T_timing.tsv'.
     """
-    # Save T peak timing
-    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}-{}_{}-{}_var-{}_coverage.tsv'.format(l_freq, h_freq, T_window[0], T_window[1], var, coverage))
-    if save and not op.isfile(timing_file):
-        with open(timing_file, 'w') as fid:
-            fid.write('subject\tstate\tblock\tR_peak\tT_delay\tT_included\n')
-    
     # Load data
     if not raw:
-        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
-        if op.isfile(raw_file):
-            raw = mne.io.read_raw_fif(raw_file, preload=True)
-        else:
+#        raw_file = op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block))
+#        if op.isfile(raw_file):
+#            raw = mne.io.read_raw_fif(raw_file, preload=True)
+#        else:
             raw = load_raw(task, subject, block)
     
     # Epoch ECG on R peak
@@ -655,13 +663,12 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     
     # Save R times
     R_times_file = op.join(Analysis_path, 'MEG', 'meta', 'ECG_R_times.tsv')
-    if not op.isfile(timing_file):
-        with open(timing_file, 'w') as fid:
+    if not op.isfile(R_times_file):
+        with open(R_times_file, 'w') as fid:
             fid.write('subject\tstate\tblock\tTime\n')
-    with open(timing_file, 'a') as fid:
+    with open(R_times_file, 'a') as fid:
         for t in epo.events[:,0]:
             fid.write("{}\t{}\t{}\t{:.3f}\n".format(subject, state, block, raw.times[t]))
-    np.savetxt(op.join(Analysis_path, 'MEG', 'meta', 'ECG_R_times.tsv'), raw.times[epo.events[:,0]], delimiter='\t', header='Timing /s')
     
     # Get the average ECG waveform
     epo.set_channel_types({ch:'eeg' for ch in ecg.ch_names})
@@ -694,20 +701,25 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
         
         mask = np.where(np.logical_and(filt_win[0] < T_times_i, T_times_i < filt_win[1]))
     
+    T_times = epo.times[T_times_i]
+    included = np.zeros(T_times.shape)
+    included[mask] = 1
+    
+    # Save T peak timing
+    timing_file = op.join(Analysis_path, 'MEG', 'meta', 'T_timing-{}_{}-{}_{}-{}_var-{}_coverage.tsv'.format(l_freq, h_freq, T_window[0], T_window[1], var, coverage))
+    if save:
+        if not op.isfile(timing_file):
+            with open(timing_file, 'w') as fid:
+                fid.write('subject\tstate\tblock\tR_peak\tT_delay\tT_included\n')
+        with open(timing_file, 'a') as fid:
+            for i in range(len(T_times)):
+                fid.write("{}\t{}\t{}\t{:.3f}\t{:.3f}\t{}\n".format(subject, state, block, raw.times[epo.events[i,0]], T_times[i], included[i]))
+    
     # Create T events
     T_events = epo.copy().events
     T_events[:,0] += T_times_i - epo.time_as_index(0)
     T_events[:,2] = T_id
     T_events = T_events[mask]
-    
-    # Save timing of R peaks and delay until T peak (in sec)
-    T_times = epo.times[T_times_i]
-    included = np.zeros(T_times.shape)
-    included[mask] = 1
-    if save:
-        for i in range(len(T_times)):
-            with open(timing_file, 'a') as fid:
-                fid.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(subject, state, block, np.round(raw.times[epo.events[i,0]],3), np.round(T_times[i], 3), included[i]))
     
     # Combine R and T events
     events = np.concatenate([epo.events, T_events])
@@ -715,7 +727,7 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     event_id = {'R': R_id, 'T': T_id}
     
     # Save events
-    event_file = op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}_{}+R_{}+T_{}.eve'.format(subject, state, block, R_id, T_id))
+    event_file = op.join(Analysis_path, task, 'meg', 'Events', subject, '{}_{}_{}-ECG+R_{}+T_{}.eve'.format(subject, state, block, R_id, T_id))
     os.makedirs(op.dirname(event_file), exist_ok=True)
     mne.write_events(event_file, events)
     
@@ -740,7 +752,7 @@ def ECG_ICA(task, subject, state, block, raw=None, events=np.array([]), event_id
     rawforica.filter(l_freq=1, h_freq=40, fir_design='firwin', n_jobs=4)
     if not events.size and not event_id:
         #Load events and extract event ids
-        event_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}_{}+R_*+T_*.eve'.format(subject, state, block)))[0]
+        event_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Epochs', 'Events', subject, '{}_{}_{}-ECG+R_*+T_*.eve'.format(subject, state, block)))[0]
         events = mne.read_events(event_file)
         
         ids = op.splitext(op.basename(event_file))[0].split('+')[1:]
@@ -811,7 +823,7 @@ def ECG_ICA(task, subject, state, block, raw=None, events=np.array([]), event_id
     return ica
 
 
-def check_ecg(task, subject, state, block, ecg_erp, raw, events, report=None, save_report=True, ICA_kwargs=dict()):
+def check_ecg(task, subject, state, block, ecg_erp, raw=None, events=None, report=None, save_report=True, ICA_kwargs=dict()):
     """
     Plot ECG along with events used for epoching. If synthetic, create and plot a synthetic ECG channel as well.
     """
@@ -823,7 +835,8 @@ def check_ecg(task, subject, state, block, ecg_erp, raw, events, report=None, sa
     
     # Load data
     if not raw:
-        raw = load_preproc(task, subject, state, block, exclude_eog=True, exclude_ecg=False, **ICA_kwargs)
+        raw = load_raw(task, subject, block)
+#        raw = load_preproc(task, subject, state, block, exclude_eog=True, exclude_ecg=False, **ICA_kwargs)
     
     ecg = raw.copy().pick_types(meg=False, ref_meg=False, ecg=True)
     
@@ -838,9 +851,7 @@ def check_ecg(task, subject, state, block, ecg_erp, raw, events, report=None, sa
     ecg.add_channels([ecg_raw])
     
     if not events.size:
-        #Load events and extract event ids
-        event_file = glob.glob(op.join(epochs_path, 'Events', subject, '{}_{}_{}*.eve'.format(subject, state, block)))[0]
-        events = mne.read_events(event_file)
+        events, event_id = load_ECG_events(task, subject, state, block)
     
     t_start = time.perf_counter()
     figs['{} Raw ECG'.format(state+block)] = ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None, title='Average pulse: {} bpm'.format(np.round(len(events[:,2]==999)*60/ecg.times[-1])))
