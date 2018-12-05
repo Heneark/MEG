@@ -761,3 +761,62 @@ Nothing to report.
 `10+start`: preserved the beginning to the cost of the last 100 sec (X = 0.2, Y = 0.05, Z = -0.4)
 
 `10+end`: Preserved the end to the cost of the first 145 sec (MinMax with X_Left = 0.45, Y_Left = 0.1 and Z_Left = -0.9, difference <= 0.0214 cm)
+
+
+21/11/2018
+==========
+ECG Reports
+
+004
+---
+The QRS complex is weak and wavy, such that peak detection is not consistent even given the R sign a priori.
+
+=> rejected
+
+
+010
+---
+T peak seems to have a polarity opposite to that of the P and R peaks.
+
+Wrong peak detection (apparently from FA04), try brute force.
+
+=> rejected
+
+
+012
+---
+Inconsistent peak detection => Actually no, individual ECG events displays this weird fork. It looks like, instead of having a PQRST polarity of +-+-+ (or -+-+-), the ECG does -++-+, as if the polarity changes between Q and R.
+
+
+028
+---
+Detection a bit off-peak, but consistent.
+
+
+056
+---
+Visually spotted 12 inconsistent R peaks for `RS01` (at times 5, 86, 202, 213, 333, 339.5, 357, 365, 371, 396, 400, 417), all corresponding to rejected T events (thus equalize_event_counts would do the trick).
+
+The artefact this inconsistency causes on the cardiac ERP is also present for the other blocks.
+
+=> specifying the R sign should fix this. (Fixed)
+
+
+064
+---
+The S peak has a greater amplitude than the R peak and is thus detected instead. => Re-run with custom_args. (Fixed)
+
+
+069
+---
+One spurious R event at the start of `FA02`. (Re-run)
+
+
+076
+---
+The S peak has a greater amplitude than the R peak and is thus detected instead. => Re-run with custom_args. (Fixed)
+
+
+094
+---
+High amplitude S peak, specify R sign. (Fixed)

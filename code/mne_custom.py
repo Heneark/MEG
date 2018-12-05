@@ -162,7 +162,7 @@ def qrs_custom(sfreq, ecg, var=1/3, thresh_value='auto', levels=2.5, n_thresh=3,
     return clean_events
 
 
-def custom_ecg_events(raw, custom_args, event_id=999, ch_name=None, tstart=0.0,
+def custom_ecg_events(raw, custom_args, event_id=999, ch_name=None,
                     l_freq=8, h_freq=16, qrs_threshold='auto',
                     filter_length='10s', return_ecg=False, verbose=None):
     """

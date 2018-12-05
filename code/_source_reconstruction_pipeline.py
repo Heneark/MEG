@@ -26,7 +26,7 @@ subjects = get_subjlist(task, include_all=True)
 #subjects = subjects[subjects.index('101')+1:]
 
 no_mri = ['019', '021']
-reject = ['011', '002']
+reject = ['004', '010', '011', '002']
 bad_data = ['040', '053', '069', '081']
 for sub in no_mri + reject: #+ bad_data:
     if sub in subjects:
@@ -80,15 +80,19 @@ from anat import BEM, src_space
 #%% PREPROCESSING
 from preproc import *
 
-ICA_kwargs={'method':'picard', 'max_iter':1000}
 custom_ecg = {'004': {'R_sign': 1, 'heart_rate': 78, 'tstart': {'RS01': .5, 'OM02': .15, 'FA04': .7}, 'force':True},
-              '010': {'R_sign': -1, 'T_sign': 1, 'heart_rate': 77},#
-              '012': {'R_sign': -1, 'T_sign': 1},#, 'heart_rate': 77
-              '028': {'R_sign': -1},#, 'heart_rate': 55
+              '010': {'R_sign': -1, 'T_sign': 1, 'heart_rate': 76, 'tstart': {'RS01': .7, 'FA03': .77, 'FA04': .95, 'OM06': .6, 'OM07': .85}, 'force':True},#
+              '012': {'R_sign': -1, 'T_sign': 1},#, 'heart_rate': 77},
+              '028': {'R_sign': -1},#, 'heart_rate': 55},
+              '056': {'R_sign': -1},
               '057': {'R_sign': -1},
-              '069': {'R_sign': -1}}#, 'heart_rate': 94
+              '064': {'R_sign': -1},
+              '069': {'R_sign': -1}, 'tstart': {'FA02': .75},#, 'heart_rate': 94},
+              '076': {'R_sign': -1},
+              '094': {'R_sign': -1}}
+ICA_kwargs={'method': 'fastica', 'max_iter': 1000}#, 'n_components': .975}
 
-for sub in subjects:
+for sub in ['040', '053', '056', '064', '069', '076', '081', '094']:#subjects:
     if not op.isfile(op.join(Analysis_path, task, 'meg', 'Covariance', sub, 'empty_room-cov.fif')):
         empty_room_covariance(task, sub)
     preproc_report = None
@@ -102,32 +106,31 @@ for sub in subjects:
             if sub in custom_ecg.keys():
                 custom_args = custom_ecg[sub].copy()
             if 'tstart' in custom_args.keys():
-                custom_args['tstart'] = custom_args['tstart'][state+blk]
+                custom_args['tstart'] = custom_args['tstart'][state+blk] if state+blk in custom_ecg[sub]['tstart'].keys() else 0
             
             if state is states[-1] and blk is blocks[-1]:
                 save_report = True
             
-            raw = load_raw(task, sub, blk)
-            events, event_id, ecg_erp = R_T_ECG_events(task, sub, state, blk, raw, custom_args=custom_args)
-            ecg_report = check_ecg(task, sub, state, blk, ecg_erp, raw, events, report=ecg_report, save_report=save_report, ICA_kwargs=ICA_kwargs)
-            
-for sub in subjects:
-    preproc_report = None
-    ecg_report = None
-    save_report = False
-    for state in states:
-        blocks = get_blocks(sub, task=task, state=state)
-        for blk in blocks:
-            if state is states[-1] and blk is blocks[-1]:
-                save_report = True
-            raw_clean, raw, ica = process(task, sub, state, blk, EOG_score=.5, ICA_kwargs=ICA_kwargs)
-            preproc_report = check_preproc(task, sub, state, blk, raw, ica, report=preproc_report, save_report=save_report, ICA_kwargs=ICA_kwargs)
+#            raw = load_raw(task, sub, blk)
+#            events, event_id, ecg_erp = R_T_ECG_events(task, sub, state, blk, raw, custom_args=custom_args)
+#            ecg_report = check_ecg(task, sub, state, blk, ecg_erp, raw, events, report=ecg_report, save_report=save_report, ICA_kwargs=ICA_kwargs)
+#            
+#            raw_clean, raw, ica = process(task, sub, state, blk, EOG_score=.5, ICA_kwargs=ICA_kwargs)
+#            preproc_report = check_preproc(task, sub, state, blk, raw, ica, report=preproc_report, save_report=save_report, ICA_kwargs=ICA_kwargs)
 #            ica_ecg = ECG_ICA(task, sub, state, blk, raw, events, event_id, rejection='auto', ECG_threshold=.2, n_components=None)
             
 #            except:
 #                with open('run.log', 'a') as fid:
 #                    fid.write(sub+'\t'+state+'\t'+blk+'\t'+'preproc bug\tstep\n')
 #                pass
+
+for method in ['picard', 'fastica']:
+    ICA_kwargs.update({'method':method})
+    for sub in subjects:
+        for state in states:
+            blocks = get_blocks(sub, task=task, state=state)
+            for blk in blocks:
+                ica = raw_ica(task, sub, state, blk, **ICA_kwargs)
 
 
 #%% COREGISTRATION (https://www.slideshare.net/mne-python/mnepython-coregistration)

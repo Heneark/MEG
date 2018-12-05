@@ -9,6 +9,7 @@ import time
 t0 = time.perf_counter()
 
 from header import *
+from preproc import load_preproc
 
 from fnmatch import filter
 from mne.report import Report
@@ -31,12 +32,12 @@ def psd_average(task: str, subjects: List[str]=None, states: List[str]=['RS', 'F
         state_blk.extend([state + str(b+1) for b in range(n_blk[state])])
     
     for st,state in enumerate(states):
-        print(state)
+        logger.info(state)
         for su,sub in enumerate(tqdm(subjects)):
             blocks = get_blocks(sub, task=task, state=state)
             for b,blk in enumerate(blocks):
-                raw = load_preproc(task, sub, state, blk)
-                psds, freqs = psd_welch(raw, n_fft=int(10*raw.info['sfreq']), fmax=int(raw.info['sfreq']/4), n_jobs=4)
+                raw = load_preproc(task, sub, state, blk, exclude_eog=True, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
+                psds, freqs = psd_welch(raw, n_fft=2**13, fmax=int(raw.info['sfreq']/4), n_jobs=4)
                 if not st and not su and not b:
                     channels = [ch.split('-')[0] for c,ch in enumerate(raw.ch_names) if c in mne.pick_types(raw.info, ref_meg=False)]
                     PSD = xr.DataArray(np.zeros((len(state_blk), len(subjects), len(channels), freqs.size)), 
@@ -56,7 +57,7 @@ subjects = get_subjlist(task)
 subjects.sort()
 
 #warnings.filterwarnings("ignore",category=DeprecationWarning)
-#PSD = psd_average(task, subjectsr)
+#PSD = psd_average(task, subjects)
 
 PSD = xr.open_dataarray(op.join(Analysis_path, task, 'meg', 'Alpha', 'PSD.nc'))
 PSD.load()

@@ -192,9 +192,6 @@ def get_blocks(subj, state=None, task=None, protocol=None, pathBase=Analysis_pat
      
      ld = pd.read_table(op.join(pathBase, 'MEG', 'meta', 'listdata.tsv'), dtype=str)
 
-     if not include_all:
-         ld = ld[ld.include == '1']
-     
      ld = ld[(ld.id == subj) | (ld.name == subj)]
      
      if state:
@@ -205,6 +202,9 @@ def get_blocks(subj, state=None, task=None, protocol=None, pathBase=Analysis_pat
          
      if protocol:
          ld = ld[ld.protocol == protocol]
+     
+     if not include_all and ld['include'].values.astype(int).any(): #Restrict to blocks with include == 1 (unless include_all == True), but only if this keeps at least one block (otherwise all blocks are kept).
+         ld = ld[ld.include == '1']
      
      if return_list:
          return list(ld['block'])
@@ -297,14 +297,3 @@ def expertise(subject):
     
     group = sub_data.at[0,'group']
     return group
-
-
-def load_preproc(task, subject, state, block, exclude_eog=True, exclude_ecg=False, ICA_kwargs=dict()):
-    """
-    
-    """
-    raw = mne.io.read_raw_fif(op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block)), preload=True)
-    if exclude_eog or exclude_ecg:
-        ica = raw_ica(task, subject, state, block, **ICA_kwargs)
-        ica.apply(raw, exclude = ica.labels_['eog'] if exclude_eog else [] + ica.labels_['ecg'] if exclude_ecg else [])
-    return raw

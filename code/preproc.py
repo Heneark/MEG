@@ -43,7 +43,7 @@ warnings.filterwarnings("ignore",category=DeprecationWarning)
 #==============================================================================
 
 
-def load_raw(task, subject, block, crop=True):
+def load_raw(task, subject, block, crop=True, update_HPI=False, HPI_kwargs=dict()):
     """
     
     """
@@ -53,6 +53,10 @@ def load_raw(task, subject, block, crop=True):
     raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
     raw.pick_types(meg=True, ecg=True, eog=True, stim=True)
     
+    # Update head coordinates
+    if update_HPI:
+        raw = HPI_update(task, subject, block, raw.copy(), **HPI_kwargs)
+    
     # Crop recording
     if crop:
         events = mne.find_events(raw)
@@ -60,6 +64,17 @@ def load_raw(task, subject, block, crop=True):
         end = raw.times[events[-1][0]] if len(events) > 1 and raw.times[events[-1][0]] > 300 else None #Crop recording if last event is more than 5 min after the beginning
         raw.crop(tmin=start, tmax=end)
     
+    return raw
+
+
+def load_preproc(task, subject, state, block, exclude_eog=True, exclude_ecg=False, ICA_kwargs=dict()):
+    """
+    
+    """
+    raw = mne.io.read_raw_fif(op.join(Analysis_path, task, 'meg', 'Raw', subject, '{}_{}_{}-raw.fif'.format(subject, state, block)), preload=True)
+    if exclude_eog or exclude_ecg:
+        ica = raw_ica(task, subject, state, block, **ICA_kwargs)
+        ica.apply(raw, exclude = ica.labels_['eog'] if exclude_eog else [] + ica.labels_['ecg'] if exclude_ecg else [])
     return raw
 
 
@@ -77,7 +92,7 @@ def load_ECG_events(task, subject, state, block, R_id=999, T_id=333, include=['R
             event_id[k] = int(v)
     
     events = mne.read_events(event_file, include=[event_id[k] for k in list(include)])
-    return events, event_id
+    return events, {k: event_id[k] for k in list(include)}
 
 def process(task, subject, state, block, notch=np.arange(50,301,50), high_pass=0.5, low_pass=None, EOG_threshold=3, EOG_min=1, EOG_max=None, EOG_score=None, ECG_threshold=.25, ECG_max=3, update_HPI=True, HPI_kwargs=dict(), ICA_kwargs=dict()):
     """
@@ -99,7 +114,7 @@ def process(task, subject, state, block, notch=np.arange(50,301,50), high_pass=0
         update_HPI:
     """
     # Load data
-    raw = mne.io.read_raw_ctf(get_rawpath(subject, task, block), preload=True, clean_names=True)
+    raw = mne.io.read_raw_ctf(get_rawpath(subject, task, block), preload=True)#, clean_names=True)
     
     raw.info['subject_info'].update({'sub':subject})
     raw.set_channel_types({get_chan_name(subject, 'ecg_chan', raw):'ecg', get_chan_name(subject, 'eogV_chan', raw):'eog', 'UPPT001':'stim'})
@@ -201,6 +216,8 @@ def raw_ica(task, subject, state, block, raw=None, save=True, overwrite_fit=Fals
     
     if op.isfile(ICA_file) and not overwrite_fit:
         ica = read_ica(ICA_file)
+        if not 'filename 'in ica.labels_.keys():
+            ica.labels_['filename'] = ICA_file
         return ica
     
     ica = ICA(n_components=n_components, method=method, max_iter=max_iter) #create ICA object
@@ -209,12 +226,14 @@ def raw_ica(task, subject, state, block, raw=None, save=True, overwrite_fit=Fals
     
     # Filter for ICA
     if not raw:
-        raw = load_raw(task, subject, block)
+        raw = load_raw(task, subject, block, update_HPI=True)
     raw.filter(l_freq=1, h_freq=40, fir_design='firwin', n_jobs=4)
     
     if ica_rejection is 'auto':
+        t_start = time.perf_counter()
         auto_epochs = mne.Epochs(raw.copy(), make_fixed_length_events(raw.copy(), 111, duration=2, first_samp=False), tmin=0, tmax=2, baseline=None, picks=mne.pick_types(raw.info), reject=None)
         ica_rejection = get_rejection_threshold(auto_epochs)
+        logger.info("Rejection threshold computation took {:.1f}s.".format(time.perf_counter() - t_start))
     
     # Fit ICA
     ica.fit(raw, reject=ica_rejection, decim=6, picks=mne.pick_types(raw.info, meg=True, ref_meg=False)) #decimate: 200Hz is more than enough for ICA, saves time; picks: fit only on MEG
@@ -229,24 +248,24 @@ def raw_ica(task, subject, state, block, raw=None, save=True, overwrite_fit=Fals
     return ica
 
 
-def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, save_report=True, custom_args=dict(), ICA_kwargs=dict()):
+def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, save_report=True, custom_args=dict(), ICA_kwargs={'method':'picard'}):
     """
     
     """
     # Initialisation
     if not raw:
-        raw = load_preproc(task, subject, state, block, exclude_eog=False, exclude_ecg=False, **ICA_kwargs)
+        raw = load_preproc(task, subject, state, block, exclude_eog=False, exclude_ecg=False, ICA_kwargs=ICA_kwargs)
     if not ica:
         ica = raw_ica(task, subject, state, block, **ICA_kwargs)
     if not report:
-        report = Report(subject=subject, title='{} {} {} - Preprocessing report'.format(subject, state, block), image_format='svg')
+        report = Report(subject=subject, title='{} - Preprocessing report'.format(subject), image_format='svg')
     
     figs = dict()
     
     # EOG plots
     check_eog = create_eog_epochs(raw.copy(), reject=ica.labels_['rejection'])
     
-    figs['{} EOG comp scores'.format(state+block)] = ica.plot_scores(ica.labels_['eog_scores'], exclude=ica.labels_['eog'], labels='eog', axhline=ica.labels_['EOG_threshold'] if ica.labels_['EOG_threshold'] <= 1 else None, figsize=(8,2), show=False)
+    figs['{} EOG comp scores'.format(state+block)] = ica.plot_scores(np.abs(ica.labels_['eog_scores']), exclude=ica.labels_['eog'], labels='eog', axhline=ica.labels_['EOG_threshold'] if ica.labels_['EOG_threshold'] <= 1 else None, figsize=(8,2), show=False)
     for comp in ica.labels_['eog']:
         figs['{} EOG {}'.format(state+block, comp)] = ica.plot_properties(check_eog, picks=comp, show=False)[0]
     figs['{} EOG overlay'.format(state+block)] = ica.plot_overlay(check_eog.average(), exclude=ica.labels_['eog'], show=False)
@@ -264,6 +283,7 @@ def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, 
     captions = sorted(figs.keys())
 #    t_start = time.perf_counter()
     report.add_htmls_to_section('{}s of data rejected (threshold = {:.0f} fT).'.format(rejected_duration(raw), ica.labels_['raw_rejection']['mag']*1e15), 'Total rejected duration', state+block)
+    report.add_htmls_to_section('Method: {}, {} components'.format(ICA_kwargs['method'], ica.n_components_), 'ICA used', state+block)
     report.add_figs_to_section([figs[k] for k in captions], captions, state+block)
 #    logger.info("Editing Report took {:.1f}s.".format(time.perf_counter() - t_start))
     if save_report:
@@ -272,12 +292,12 @@ def check_preproc(task, subject, state, block, raw=None, ica=None, report=None, 
         report.save(report_file, open_browser=False, overwrite=True)
     
     # ICA log
-    ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log.tsv')
+    ICA_log = op.join(Analysis_path, task, 'meg', 'ICA', 'ICA_log-{}.tsv'.format(ICA_kwargs['method']))
     if not op.isfile(ICA_log):
         with open(ICA_log, 'w') as fid:
-            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('subject','state','block','start','end','n_selected_comps','ncomp_EOG','ncomp_ECG','rejection /fT','dropped_epochs'))
+            fid.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format('subject','state','block','start','end','n_comps','n_EOG','n_ECG','rej_fT','dropped'))
     with open(ICA_log, 'a') as fid:
-        fid.write("{}\t{}\t{}\t{:.3f}\t{:.3f}\t{}\t{}\t{}\t{:.0f}\t{}\n".format(subject,state,block,raw.first_samp/raw.info['sfreq'],raw.times[-1]+raw.first_samp/raw.info['sfreq'],ica.n_components_,len(ica.labels_['eog']),len(ica.labels_['ecg']),ica.labels_['rejection']['mag']*1e15,len(ica.labels_['drop_inds_'])))
+        fid.write("{}\t{}\t{}\t{:.3f}\t{:.3f}\t{}\t{}\t{}\t{:7.0f}\t{}\n".format(subject,state,block,raw.first_samp/raw.info['sfreq'],raw.times[-1]+raw.first_samp/raw.info['sfreq'],ica.n_components_,len(ica.labels_['eog']),len(ica.labels_['ecg']),ica.labels_['rejection']['mag']*1e15,len(ica.labels_['drop_inds_'])))
         
     return report
     
@@ -823,16 +843,10 @@ def ECG_ICA(task, subject, state, block, raw=None, events=np.array([]), event_id
     return ica
 
 
-def check_ecg(task, subject, state, block, ecg_erp, raw=None, events=None, report=None, save_report=True, ICA_kwargs=dict()):
+def check_ecg(task, subject, state, block, ecg_erp=None, raw=None, events=np.array([]), report=None, save_report=True, ICA_kwargs=dict()):
     """
     Plot ECG along with events used for epoching. If synthetic, create and plot a synthetic ECG channel as well.
     """
-    if not report:
-        report = Report(subject=subject, title='{} {} {} - Preprocessing report'.format(subject, state, block), image_format='svg')
-    figs = dict()
-    
-    figs['{} ECG waveform'.format(state+block)] = ecg_erp.plot()
-    
     # Load data
     if not raw:
         raw = load_raw(task, subject, block)
@@ -853,13 +867,24 @@ def check_ecg(task, subject, state, block, ecg_erp, raw=None, events=None, repor
     if not events.size:
         events, event_id = load_ECG_events(task, subject, state, block)
     
-    t_start = time.perf_counter()
-    figs['{} Raw ECG'.format(state+block)] = ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None, title='Average pulse: {} bpm'.format(np.round(len(events[:,2]==999)*60/ecg.times[-1])))
+    pulse = len(events[events[:,2]==999])*60/ecg.times[events[-1,0] - events[0,0]]
+    if not ecg_erp:
+        ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None, title='{}_{}_{} - {:.0f} bpm'.format(subject, state, block, pulse))
+        return pulse
+    
+    if not report:
+        report = Report(subject=subject, title='{} - ECG report'.format(subject), image_format='svg')
+    figs = dict()
+    
+#    t_start = time.perf_counter()
+    figs['{} ECG waveform'.format(state+block)] = ecg_erp.plot()
+    figs['{} Raw ECG'.format(state+block)] = ecg.plot(n_channels=len(ecg.ch_names), events=events, scalings='auto', bgcolor=None)
 #    figs['{} Raw ECG'.format(state+block)].set_size_inches(16,4)
-    logger.info("Editing Report took {:.1f}s.".format(time.perf_counter() - t_start))
+#    logger.info("Editing Report took {:.1f}s.".format(time.perf_counter() - t_start))
     
     # Save report
     captions = sorted(figs.keys())
+    report.add_htmls_to_section('{:.0f} bpm'.format(pulse), '{} Average pulse'.format(state+block), state+block)
     report.add_figs_to_section([figs[k] for k in captions], captions, state+block)
     if save_report:
         report_file = op.join(Analysis_path, task, 'meg', 'Reports', subject, '{}_ECG-report.html'.format(subject))
