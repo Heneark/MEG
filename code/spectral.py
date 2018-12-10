@@ -227,6 +227,37 @@ with open(alpha_fname, 'w') as fid:
     fid.close()
 
 
+#%% LOAD STATS
+
+tests = ['RS_vs_FA', 'RS_vs_OM', 'OM_vs_FA', 'RS_vs_FA+E', 'RS_vs_OM+E', 'OM_vs_FA+E', 'RS_vs_FA+N', 'RS_vs_OM+N', 'OM_vs_FA+N']
+stats = dict()
+NS = []
+for t in tests:
+    file = path+'3-45Hz_{}_stat-ave.fif'.format(t)
+    if op.isfile(file):
+        stats[t] = mne.read_evokeds(file)
+    else:
+        NS.append(t)
+
+
+#%% PLOT EVOKED
+        
+k = 'RS_vs_FA'
+evoked = stats[k][-1]
+fmin = 7
+fmax = 13
+freqs = np.linspace(fmin,fmax,20)
+freqs = evoked.times[np.logical_and(fmin <= evoked.times, evoked.times <= fmax)]
+freqs = freqs[::len(freqs)//20 + 1 if len(freqs)%20 else 0]
+f = evoked.time_as_index(fmin)[0]
+freqs = evoked.times[f:f+20]
+
+evoked.plot_topomap(times=freqs, time_unit='s', title=k+' - {} significant clusters'.format(len(stats[k])-1))
+for clu in stats[k]:
+    clu.plot_joint(ts_args={'time_unit': 's'}, topomap_args={'time_unit': 's'}, title=clu.comment)
+    input("Next cluster? [Enter]")
+
+
 #%% RUNNING TIME
 
 t1 = time.perf_counter()
