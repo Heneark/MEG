@@ -19,7 +19,7 @@ from typing import List, Union
 
 #%% PSD TO DATAARRAY FUNCTION
 
-def psd_average(task: str, subjects: List[str]=None, states: List[str]=['RS', 'FA', 'OM'], n_blk={'RS': 1, 'FA': 2, 'OM': 2}, verbose=False):
+def psd_batch(task: str, subjects: List[str]=None, states: List[str]=['RS', 'FA', 'OM'], n_blk={'RS': 1, 'FA': 2, 'OM': 2}, verbose=False):
     """
     
     """
@@ -37,7 +37,7 @@ def psd_average(task: str, subjects: List[str]=None, states: List[str]=['RS', 'F
             blocks = get_blocks(sub, task=task, state=state)
             for b,blk in enumerate(blocks):
                 raw = load_preproc(task, sub, state, blk, exclude_eog=True, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
-                psds, freqs = psd_welch(raw, n_fft=2**13, fmax=int(raw.info['sfreq']/4), n_jobs=4)
+                psds, freqs = psd_welch(raw, n_fft=2400, fmax=int(raw.info['sfreq']/4), n_jobs=4) #2**13
                 if not st and not su and not b:
                     channels = [ch.split('-')[0] for c,ch in enumerate(raw.ch_names) if c in mne.pick_types(raw.info, ref_meg=False)]
                     PSD = xr.DataArray(np.zeros((len(state_blk), len(subjects), len(channels), freqs.size)), 
@@ -229,7 +229,7 @@ with open(alpha_fname, 'w') as fid:
 
 #%% LOAD STATS
 
-tests = ['RS_vs_FA', 'RS_vs_OM', 'OM_vs_FA', 'RS_vs_FA+E', 'RS_vs_OM+E', 'OM_vs_FA+E', 'RS_vs_FA+N', 'RS_vs_OM+N', 'OM_vs_FA+N']
+tests = ['RS_vs_FA', 'RS_vs_OM', 'OM_vs_FA', 'RS_vs_FA+E', 'RS_vs_OM+E', 'OM_vs_FA+E', 'RS_vs_FA+N', 'RS_vs_OM+N', 'OM_vs_FA+N', 'N_vs_E+RS-FA', 'N_vs_E+RS-OM', 'N_vs_E+OM-FA']
 stats = dict()
 NS = []
 for t in tests:
@@ -242,20 +242,31 @@ for t in tests:
 
 #%% PLOT EVOKED
         
-k = 'RS_vs_FA'
+k = 'RS_vs_FA+E'
 evoked = stats[k][-1]
-fmin = 7
-fmax = 13
+fmin = 20
+fmax = 45
 freqs = np.linspace(fmin,fmax,20)
 freqs = evoked.times[np.logical_and(fmin <= evoked.times, evoked.times <= fmax)]
 freqs = freqs[::len(freqs)//20 + 1 if len(freqs)%20 else 0]
 f = evoked.time_as_index(fmin)[0]
-freqs = evoked.times[f:f+20]
+#freqs = evoked.times[f:f+20]
 
 evoked.plot_topomap(times=freqs, time_unit='s', title=k+' - {} significant clusters'.format(len(stats[k])-1))
-for clu in stats[k]:
-    clu.plot_joint(ts_args={'time_unit': 's'}, topomap_args={'time_unit': 's'}, title=clu.comment)
-    input("Next cluster? [Enter]")
+
+clu_range = dict()
+clu_range_i = dict()
+for c,clu in enumerate(stats[k][:-1]):
+    start = np.min(np.where(clu.data)[1])
+    stop = np.max(np.where(clu.data)[1])
+    clu_range[c] = (np.round(clu.times[start], 1), np.round(clu.times[stop], 1))
+    clu_range_i[c] = (start, stop)
+clu_range
+
+c = 9
+cluster = stats[k][c].copy()
+cluster.crop(*clu_range[c])
+cluster.plot_topomap(time_unit = 's', title = cluster.comment)
 
 
 #%% RUNNING TIME
