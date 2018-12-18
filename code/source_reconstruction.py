@@ -7,9 +7,9 @@ Created on Mon Jul 10 17:42:45 2017
 
 #==============================================================================
 from header import *
-from tqdm import tqdm
+from preproc import load_preproc
 #==============================================================================
-warnings.filterwarnings("ignore",category=DeprecationWarning)
+#warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 # MANUAL CHECK
 #==============================================================================
@@ -608,3 +608,118 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
     fs_stc.save(gd_average_file)
     print(colored(gd_average_file, 'green'))
     mne.set_log_level(verb)
+
+
+def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, keys=['R','T'], name='ECG_included', window={'R':(.35,.5), 'T':(.1,.25)}, surface='ico4', volume=6.2, bem_spacing='ico4', baseline_cov=True, mindist=5, method:"'beamformer', 'MNE', 'dSPM', 'sLORETA', 'eLORETA'"="dSPM"):
+    """
+    If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
+    If compute_inv=True, compute and save inverse solution.
+    If compute_stc=True, compute and save SourceEstimate.
+    If fsaverage=True, morph SourceEstimate to fsaverage and save it.
+    Do this for surface if provided and for volume if provided.
+    Parameters:
+        block_group: list of coregistered blocks of the same state to be combined
+        evoked: dict of Evoked assigned to their name as returned by baseline_covariance() (will be loaded if not provided)
+        noise_cov: if baseline_cov=True, should be baseline covariance, else should be empty room noise covariance (will be loaded if not provided)
+        bem_spacing: BEM surface downsampling as specified for anat.BEM()
+        surface: source space subdivision as specified for anat.src_space()
+        volume: distance between volume sources as `pos` specified for anat.src_space()
+        names: list of Epoch name
+        mindist: minimum distance (in mm) of sources from inner skull surface (see mne.make_forward_solution)
+        method: source reconstruction method (see mne.minimum_norm.apply_inverse)
+    Output (Analyses/<task>/meg/SourceEstimate/<subject>/):
+        *'-fwd.fif' (forward model)
+        *'-inv.fif' (inverse model)
+        *'-lh.stc' (left hemisphere SourceEstimate)
+        *'-rh.stc' (right hemisphere SourceEstimate)
+        *'-fsaverage-lh.stc' (left hemisphere morphed SourceEstimate)
+        *'-fsaverage-rh.stc' (right hemisphere morphed SourceEstimate)
+    """
+    # Define pathes
+    evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
+    cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
+    stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate', subject)
+    if not op.exists(stc_path):
+        os.makedirs(stc_path)
+    trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*'+block_group[0]+'*-trans.fif'))[0]
+    
+    # Load source space
+    bem_sol = mne.read_bem_solution(op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', '{}_{}_bem_solution.fif'.format(subject, (bem_spacing if bem_spacing else 'full'))))
+    if surface:
+        src_surf = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_surface-src.fif'.format(subject, surface)))
+    if volume:
+        src_vol = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_volume-src.fif'.format(subject, volume)))
+    
+    if not noise_cov:
+        # Load baseline covariance if appropriate
+        if baseline_cov:
+            noise_cov = mne.read_cov(op.join(cov_path, '{}_{}_{}-{}-baseline_noise-cov.fif'.format(subject, state, '_'.join(block_group), name)))
+        # Load empty room noise covariance if appropriate
+        else:
+            noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
+    
+    # Evokeds will be loaded if not provided
+    load_evoked = True if not evoked else False
+    
+    for k in keys:
+        # Load Evokeds if not provided and combine the block_group
+        if load_evoked: evoked[k] = [mne.Evoked(op.join(evoked_path, '{}_{}_{}-{}-ave.fif'.format(subject, state, block, name)), condition = k) for block in block_group]
+        evoked[k] = mne.combine_evoked(evoked[k], 'nave')
+        evoked[k].crop(*window[k])
+    
+    k0 = keys[0]
+    
+    # Bad channels will be rejected when computing the inverse operator and SourceEstimate
+    bad_chan = list(set(evoked[k0].info['bads']) | set(get_chan_name(subject, 'bad', evoked[k0])))
+    
+    # Do surface SourceEstimate
+    if surface:
+        # Compute forward solution
+        fwd_surf = mne.make_forward_solution(evoked[k0].info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
+        
+        # Compute inverse solution
+        if method is 'beamformer':
+            for k in keys:
+                data_cov = mne.read_cov(op.join(cov_path, '{}_{}_{}-{}_{}-data-cov.fif'.format(subject, state, '_'.join(block_group), k, name)))
+                filters = mne.beamformer.make_lcmv(mne.pick_channels_evoked(evoked[k], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(data_cov, exclude=bad_chan), noise_cov=mne.pick_channels_cov(noise_cov, exclude=bad_chan), pick_ori='vector')
+                
+                # Compute SourceEstimate
+                stc_surf_file = op.join(stc_path, '{}_{}_{}-{}_{}-{}-surface_{}-{}_{}-{}-stc.h5'.format(subject, state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window[k], method))
+                stc_surf = mne.beamformer.apply_lcmv(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), filters)
+                stc_surf.save(stc_surf_file)
+        
+        else:
+            inv_surf = make_inverse_operator(mne.pick_channels_evoked(evoked[k0], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan), loose=.2)
+            
+            for k in keys:
+                # Compute SourceEstimate
+                stc_surf_file = op.join(stc_path, '{}_{}_{}-{}_{}-{}-surface_{}-{}_{}-{}-stc.h5'.format(subject, state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window[k], method))
+                stc_surf = apply_inverse(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), inv_surf, method=method, pick_ori='vector')
+                stc_surf.save(stc_surf_file)
+    
+    # Do volume SourceEstimate
+    if volume:
+        # Compute forward solution
+        fwd_vol = mne.make_forward_solution(evoked[k0].info, trans=trans_file, src=src_vol, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
+        
+        # Compute inverse solution
+        if method is 'beamformer':
+            for k in keys:
+                data_cov = mne.read_cov(op.join(cov_path, '{}_{}_{}-{}_{}-data-cov.fif'.format(subject, state, '_'.join(block_group), k, name)))
+                filters = mne.beamformer.make_lcmv(mne.pick_channels_evoked(evoked[k], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(data_cov, exclude=bad_chan), noise_cov=mne.pick_channels_cov(noise_cov, exclude=bad_chan), pick_ori='max-power', weight_norm='nai')
+                
+                # Compute SourceEstimate
+                stc_vol_file = op.join(stc_path, '{}_{}_{}-{}_{}-{}-surface_{}-{}_{}-{}'.format(subject, state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window[k], method))
+                stc_vol = mne.beamformer.apply_lcmv(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), filters)
+                stc_vol.save(stc_vol_file)
+        
+        else:
+            inv_vol = make_inverse_operator(mne.pick_channels_evoked(evoked[k0], exclude=bad_chan).info, mne.pick_channels_forward(fwd_vol, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan), loose=1)
+            
+            for k in keys:
+                # Compute SourceEstimate
+                stc_vol_file = op.join(stc_path, '{}_{}_{}-{}_{}-{}-volume_{}-{}_{}-{}-stc.h5'.format(subject, state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume, *window[k], method))
+                stc_vol = apply_inverse(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), inv_vol, method=method, pick_ori='vector')
+                stc_vol.save(stc_vol_file)
+
+

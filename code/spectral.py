@@ -228,12 +228,13 @@ with open(alpha_fname, 'w') as fid:
 
 
 #%% LOAD STATS
-
-tests = ['RS_vs_FA', 'RS_vs_OM', 'OM_vs_FA', 'RS_vs_FA+E', 'RS_vs_OM+E', 'OM_vs_FA+E', 'RS_vs_FA+N', 'RS_vs_OM+N', 'OM_vs_FA+N', 'N_vs_E+RS-FA', 'N_vs_E+RS-OM', 'N_vs_E+OM-FA']
+task = 'SMEG'
+tests = ['FA_vs_RS', 'OM_vs_RS', 'FA_vs_OM', 'FA_vs_RS+E', 'OM_vs_RS+E', 'FA_vs_OM+E', 'FA_vs_RS+N', 'OM_vs_RS+N', 'FA_vs_OM+N', 'N_vs_E+FA-RS', 'N_vs_E+OM-RS', 'N_vs_E+FA-OM']
+f1, f2 = .5, 100
 stats = dict()
 NS = []
 for t in tests:
-    file = path+'3-45Hz_{}_stat-ave.fif'.format(t)
+    file = op.join(Analysis_path, task, 'meg', 'Stats', 'PSD', '{}-{}Hz_{}_stat-ave.fif'.format(f1, f2, t))
     if op.isfile(file):
         stats[t] = mne.read_evokeds(file)
     else:
@@ -242,17 +243,40 @@ for t in tests:
 
 #%% PLOT EVOKED
         
-k = 'RS_vs_FA+E'
+k = 'FA_vs_RS+E'
+fmin = 3
+fmax = 8
 evoked = stats[k][-1]
-fmin = 20
-fmax = 45
-freqs = np.linspace(fmin,fmax,20)
+#freqs = np.linspace(fmin,fmax,20)
 freqs = evoked.times[np.logical_and(fmin <= evoked.times, evoked.times <= fmax)]
-freqs = freqs[::len(freqs)//20 + 1 if len(freqs)%20 else 0]
-f = evoked.time_as_index(fmin)[0]
+freqs = freqs[::len(freqs)//6 + 1 if len(freqs)%20 else 0]
+#f = evoked.time_as_index(fmin)[0]
 #freqs = evoked.times[f:f+20]
+os.makedirs(op.join(Analysis_path, task, 'meg', 'Plots', 'PSD'), exist_ok=True)
 
-evoked.plot_topomap(times=freqs, time_unit='s', title=k+' - {} significant clusters'.format(len(stats[k])-1))
+for k in stats.keys():
+    logger.info(k)
+    evoked = stats[k][-1]
+    evoked.plot_joint(times='peaks', title=k+' - {} significant clusters'.format(len(stats[k])-1),
+                      topomap_args={'time_format': '%0.1f Hz', 'scalings': {'mag':1}, 'units': 'T value'},
+                      ts_args={'scalings': {'mag':1}, 'units': {'mag':'T value'}})
+    plt.savefig(op.join(Analysis_path, task, 'meg', 'Plots', 'PSD', 'joint_{}.svg'.format(k)), dpi='figure', transparent=True)
+    plt.close()
+    
+    fig, axes = plt.subplots(5,7)
+    bins = []
+    locs = []
+    for n, (fmin, fmax) in enumerate(zip([.5, 4, 10, 17, 30], [3, 9, 15, 27, 100])):
+#    for n, (fmin, fmax) in enumerate(zip([.5, 3, 8, 13, 30], [2.5, 7, 12, 25, 100])):
+        freqs = evoked.times[np.logical_and(np.logical_and(fmin <= evoked.times, evoked.times <= fmax), evoked.data.mean(0) != 0)]
+        if freqs.size:
+            freqs = freqs[::len(freqs)//6 if len(freqs)//6 else 1][:6]
+        bins.extend(freqs)
+        locs.extend(axes[n,:freqs.size])
+    evoked.plot_topomap(times=bins, time_unit='s', time_format='%0.1f Hz', scalings={'mag':1}, units='T value', title=k, axes=locs)#, colorbar=False)#not n)
+    fig.set_size_inches(15,15)
+    fig.savefig(op.join(Analysis_path, task, 'meg', 'Plots', 'PSD', 'topo_{}.svg'.format(k)), dpi='figure', transparent=True)
+    plt.close(fig)
 
 clu_range = dict()
 clu_range_i = dict()
@@ -261,9 +285,8 @@ for c,clu in enumerate(stats[k][:-1]):
     stop = np.max(np.where(clu.data)[1])
     clu_range[c] = (np.round(clu.times[start], 1), np.round(clu.times[stop], 1))
     clu_range_i[c] = (start, stop)
-clu_range
 
-c = 9
+c = 0
 cluster = stats[k][c].copy()
 cluster.crop(*clu_range[c])
 cluster.plot_topomap(time_unit = 's', title = cluster.comment)
