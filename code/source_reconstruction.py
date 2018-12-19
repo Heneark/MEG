@@ -610,7 +610,7 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
     mne.set_log_level(verb)
 
 
-def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, keys=['R','T'], name='ECG_included', window={'R':(.35,.5), 'T':(.1,.25)}, surface='ico4', volume=6.2, bem_spacing='ico4', baseline_cov=True, mindist=5, method:"'beamformer', 'MNE', 'dSPM', 'sLORETA', 'eLORETA'"="dSPM"):
+def src_power(task, subject, state, block_group, evoked=dict(), noise_cov=None, keys=['R','T'], name='ECG_included', window={'R':(.35,.5), 'T':(.1,.25)}, surface='ico4', volume=6.2, bem_spacing='ico4', baseline_cov=True, mindist=5, method:"'beamformer', 'MNE', 'dSPM', 'sLORETA', 'eLORETA'"="dSPM"):
     """
     If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
     If compute_inv=True, compute and save inverse solution.
@@ -636,11 +636,9 @@ def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, ke
         *'-fsaverage-rh.stc' (right hemisphere morphed SourceEstimate)
     """
     # Define pathes
-    evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked', subject)
     cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
     stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate', subject)
-    if not op.exists(stc_path):
-        os.makedirs(stc_path)
+    os.makedirs(stc_path, exist_ok=True)
     trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*'+block_group[0]+'*-trans.fif'))[0]
     
     # Load source space
@@ -723,3 +721,32 @@ def src_rec(task, subject, state, block_group, evoked=dict(), noise_cov=None, ke
                 stc_vol.save(stc_vol_file)
 
 
+task='SMEG'; subject='063'; state='RS'; block='01'
+raw = load_preproc(task, subject, state, block, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
+epochs = mne.Epochs(raw, make_fixed_length_events(raw, int(block), duration=2.5, first_samp=False), tmin=0, tmax=5, baseline=None, preload=True)
+cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
+noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
+trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*01*-trans.fif'))[0]
+bem_spacing='ico4'
+bem_sol = mne.read_bem_solution(op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', '{}_{}_bem_solution.fif'.format(subject, (bem_spacing if bem_spacing else 'full'))))
+src_surf = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_surface-src.fif'.format(subject, surface)))
+fwd_surf = mne.make_forward_solution(epochs.info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=5, n_jobs=4)
+csd = mne.time_frequency.csd_multitaper(epochs, 7, 10, adaptive=True, n_jobs=4)
+filters = mne.beamformer.make_dics(epochs.info, fwd_surf, csd)
+stc, freqs = mne.beamformer.apply_dics_csd(csd, filters)
+task='SMEG'; subject='063'; state='RS'; block='01'
+raw = load_preproc(task, subject, state, block, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
+epochs = mne.Epochs(raw, make_fixed_length_events(raw, int(block), duration=2.5, first_samp=False), tmin=0, tmax=5, baseline=None, preload=True)
+cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
+noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
+trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*01*-trans.fif'))[0]
+bem_spacing='ico4'
+bem_sol = mne.read_bem_solution(op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', '{}_{}_bem_solution.fif'.format(subject, (bem_spacing if bem_spacing else 'full'))))
+surface='ico4'
+src_surf = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_surface-src.fif'.format(subject, surface)))
+fwd_surf = mne.make_forward_solution(epochs.info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=5, n_jobs=4)
+csd = mne.time_frequency.csd_multitaper(epochs, 7, 10, adaptive=True, n_jobs=4)
+filters = mne.beamformer.make_dics(epochs.info, fwd_surf, csd)
+stc, freqs = mne.beamformer.apply_dics_csd(csd, filters)
+morph = mne.compute_source_morph(stc)
+stc_fs = morph.apply(stc)
