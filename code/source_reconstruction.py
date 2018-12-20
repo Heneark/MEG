@@ -610,7 +610,7 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
     mne.set_log_level(verb)
 
 
-def src_power(task, subject, state, block_group, evoked=dict(), noise_cov=None, keys=['R','T'], name='ECG_included', window={'R':(.35,.5), 'T':(.1,.25)}, surface='ico4', volume=6.2, bem_spacing='ico4', baseline_cov=True, mindist=5, method:"'beamformer', 'MNE', 'dSPM', 'sLORETA', 'eLORETA'"="dSPM"):
+def src_power(task, subject, state, block_group, fmin, fmax, window=5, nfft=2**11, overlap=.5, noise_cov=None, surface='ico4', volume=6.2, bem_spacing='ico4', baseline_cov=False, mindist=5, method:"'beamformer', 'MNE', 'dSPM', 'sLORETA', 'eLORETA'"='beamformer'):
     """
     If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
     If compute_inv=True, compute and save inverse solution.
@@ -656,19 +656,15 @@ def src_power(task, subject, state, block_group, evoked=dict(), noise_cov=None, 
         else:
             noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
     
-    # Evokeds will be loaded if not provided
-    load_evoked = True if not evoked else False
-    
-    for k in keys:
-        # Load Evokeds if not provided and combine the block_group
-        if load_evoked: evoked[k] = [mne.Evoked(op.join(evoked_path, '{}_{}_{}-{}-ave.fif'.format(subject, state, block, name)), condition = k) for block in block_group]
-        evoked[k] = mne.combine_evoked(evoked[k], 'nave')
-        evoked[k].crop(*window[k])
-    
-    k0 = keys[0]
+    raw = load_preproc(task, subject, state, block, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
     
     # Bad channels will be rejected when computing the inverse operator and SourceEstimate
-    bad_chan = list(set(evoked[k0].info['bads']) | set(get_chan_name(subject, 'bad', evoked[k0])))
+    bad_chan = list(set(raw.info['bads']) | set(get_chan_name(subject, 'bad', raw)))
+    
+    if nfft:
+        window = nfft / raw.info['sfreq']
+    
+    epochs = mne.Epochs(raw, make_fixed_length_events(raw, int(block), duration=(1-overlap)*window, first_samp=False), tmin=0, tmax=window, baseline=None, preload=True)
     
     # Do surface SourceEstimate
     if surface:
@@ -678,8 +674,8 @@ def src_power(task, subject, state, block_group, evoked=dict(), noise_cov=None, 
         # Compute inverse solution
         if method is 'beamformer':
             for k in keys:
-                data_cov = mne.read_cov(op.join(cov_path, '{}_{}_{}-{}_{}-data-cov.fif'.format(subject, state, '_'.join(block_group), k, name)))
-                filters = mne.beamformer.make_lcmv(mne.pick_channels_evoked(evoked[k], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(data_cov, exclude=bad_chan), noise_cov=mne.pick_channels_cov(noise_cov, exclude=bad_chan), pick_ori='vector')
+                csd = mne.time_frequency.csd_multitaper(epochs, fmin, fmax, adaptive=True, n_jobs=4)
+                filters = mne.beamformer.make_dics(mne.pick_channels_evoked(evoked[k], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(data_cov, exclude=bad_chan), noise_cov=mne.pick_channels_cov(noise_cov, exclude=bad_chan), pick_ori='vector')
                 
                 # Compute SourceEstimate
                 stc_surf_file = op.join(stc_path, '{}_{}_{}-{}_{}-{}-surface_{}-{}_{}-{}-stc.h5'.format(subject, state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window[k], method))
