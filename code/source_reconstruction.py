@@ -610,7 +610,7 @@ def fs_average(task, state, name, key, subjects=None, do_morphing=False, overwri
     mne.set_log_level(verb)
 
 
-def src_power(task, subject, state, block_group, fmin, fmax, window=5, nfft=2**11, overlap=.5, noise_cov=None, surface='ico4', volume=6.2, bem_spacing='ico4', baseline_cov=False, mindist=5, method:"'beamformer', 'MNE', 'dSPM', 'sLORETA', 'eLORETA'"='beamformer'):
+def src_power(task, subject, state, block_group, fmin, fmax, window=None, nfft=2**13, overlap=.5, overwrite_csd=None, surface='ico4', volume=6.2, bem_spacing='ico4', baseline_cov=False, mindist=5, method:"'beamformer', 'MNE', 'dSPM', 'sLORETA', 'eLORETA'"='beamformer'):
     """
     If compute_fwd=True, compute and save forward solution (overwriting previously existing one).
     If compute_inv=True, compute and save inverse solution.
@@ -635,9 +635,10 @@ def src_power(task, subject, state, block_group, fmin, fmax, window=5, nfft=2**1
         *'-fsaverage-lh.stc' (left hemisphere morphed SourceEstimate)
         *'-fsaverage-rh.stc' (right hemisphere morphed SourceEstimate)
     """
+    if type(block_group) is str: block_group = [block_group]
+    
     # Define pathes
-    cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
-    stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate', subject)
+    stc_path = op.join(Analysis_path, task, 'meg', 'PowerEstimate', subject)
     os.makedirs(stc_path, exist_ok=True)
     trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*'+block_group[0]+'*-trans.fif'))[0]
     
@@ -648,101 +649,177 @@ def src_power(task, subject, state, block_group, fmin, fmax, window=5, nfft=2**1
     if volume:
         src_vol = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_volume-src.fif'.format(subject, volume)))
     
-    if not noise_cov:
-        # Load baseline covariance if appropriate
-        if baseline_cov:
-            noise_cov = mne.read_cov(op.join(cov_path, '{}_{}_{}-{}-baseline_noise-cov.fif'.format(subject, state, '_'.join(block_group), name)))
-        # Load empty room noise covariance if appropriate
-        else:
-            noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
+    epochs_list = []
+    for blk in block_group:
+        raw = load_preproc(task, subject, state, block, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
+        
+        if not nfft:
+            nfft = window * raw.info['sfreq'] + 1
+        
+        epochs_list.append(mne.Epochs(raw, make_fixed_length_events(raw, duration=(1 - overlap) * int(nfft) / raw.info['sfreq'], first_samp=False), tmin=0, tmax=(nfft - 1) / raw.info['sfreq'], baseline=None, preload=True))
     
-    raw = load_preproc(task, subject, state, block, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
+    epochs = mne.concatenate_epochs(epochs_list)
     
     # Bad channels will be rejected when computing the inverse operator and SourceEstimate
-    bad_chan = list(set(raw.info['bads']) | set(get_chan_name(subject, 'bad', raw)))
-    
-    if nfft:
-        window = nfft / raw.info['sfreq']
-    
-    epochs = mne.Epochs(raw, make_fixed_length_events(raw, int(block), duration=(1-overlap)*window, first_samp=False), tmin=0, tmax=window, baseline=None, preload=True)
+    bad_chan = set(raw.info['bads']) | set(get_chan_name(subject, 'bad', raw))
+    picks = list(set(raw.ch_names) - bad_chan)
+    epochs.pick_channels(picks)
     
     # Do surface SourceEstimate
     if surface:
         # Compute forward solution
-        fwd_surf = mne.make_forward_solution(evoked[k0].info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
+        fwd_surf = mne.make_forward_solution(epochs.info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
         
-        # Compute inverse solution
-        if method is 'beamformer':
-            for k in keys:
-                csd = mne.time_frequency.csd_multitaper(epochs, fmin, fmax, adaptive=True, n_jobs=4)
-                filters = mne.beamformer.make_dics(mne.pick_channels_evoked(evoked[k], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(data_cov, exclude=bad_chan), noise_cov=mne.pick_channels_cov(noise_cov, exclude=bad_chan), pick_ori='vector')
-                
-                # Compute SourceEstimate
-                stc_surf_file = op.join(stc_path, '{}_{}_{}-{}_{}-{}-surface_{}-{}_{}-{}-stc.h5'.format(subject, state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window[k], method))
-                stc_surf = mne.beamformer.apply_lcmv(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), filters)
-                stc_surf.save(stc_surf_file)
-        
+        # Compute CSD
+        csd_file = op.join(stc_path, '{}_{}_{}-surface_{}-{}_{}_CSD.h5'.format(subject, state, '_'.join(block_group), surface, fmin, fmax))
+        if overwrite_csd or not op.isfile(csd_file):
+            csd = mne.time_frequency.csd_multitaper(epochs, fmin, fmax, adaptive=True, n_jobs=4)
+            csd.save(csd_file)
         else:
-            inv_surf = make_inverse_operator(mne.pick_channels_evoked(evoked[k0], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan), loose=.2)
-            
-            for k in keys:
-                # Compute SourceEstimate
-                stc_surf_file = op.join(stc_path, '{}_{}_{}-{}_{}-{}-surface_{}-{}_{}-{}-stc.h5'.format(subject, state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window[k], method))
-                stc_surf = apply_inverse(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), inv_surf, method=method, pick_ori='vector')
-                stc_surf.save(stc_surf_file)
+            csd = mne.time_frequency.read_csd(csd_file)
+        
+        filters = mne.beamformer.make_dics(epochs.info, fwd_surf, csd)
+        
+        # Compute SourceEstimate
+        stc_surf_file = op.join(stc_path, '{}_{}_{}-surface_{}-{}_{}_DICS'.format(subject, state, '_'.join(block_group), surface, fmin, fmax))
+        stc_surf = mne.beamformer.apply_dics_csd(epochs, filters)
+        stc_surf.save(stc_surf_file, 'h5')
+        
+        return stc_surf
+
+
+def fs_average_power(task, state, subjects=None, overwrite=False, surface='ico4', baseline_cov=True, window=(None,None)):
+    """
+    If do_morphing=True, morph all SourceEstimates to fsaverage, else expecting morphing to be already performed.
+    For each subject, combine all SourceEstimates for the input state using the weighting of mne.evoked.combine_evoked.
+    Finally, compute the grand average of all subjects.
+    Parameters:
+        subjects: list of subjects to include. If not provided (default), set to all subjects of the task
+        overwrite: if True, combining and weighting will be performed again even if the corresponding file already exists.
+        surface: source space subdivision as specified for src_rec()
+        baseline_cov: if True, expecting baseline noise covariance, else empty room noise covariance
+    Output (Analyses/<task>/meg/SourceEstimate/fsaverage/):
+        <subject>/<state>-<name>-*-<subject>_to_fs-lh.stc (morphed and combined left hemisphere SourceEstimate)
+        <subject>/*-<subject>_to_fs-rh.stc (likewise for right hemisphere)
+        <state>-<name>-*-lh.stc' (grand average left hemisphere SourceEstimate)
+        <state>-<name>-*-rh.stc' (likewise for right hemisphere)
+    """
+    verb = mne.set_log_level(False, return_old_level=True) # Don't pollute the terminal each time a file is loaded.
     
-    # Do volume SourceEstimate
-    if volume:
-        # Compute forward solution
-        fwd_vol = mne.make_forward_solution(evoked[k0].info, trans=trans_file, src=src_vol, bem=bem_sol, meg=True, eeg=False, mindist=mindist, n_jobs=4)
+    # Define pathes
+    stc_path = op.join(Analysis_path, task, 'meg', 'SourceEstimate')
+    evoked_path = op.join(Analysis_path, task, 'meg', 'Evoked')
+    gd_average_file = op.join(stc_path, 'fsaverage', 'Grand_average', '{}-{}_{}-{}-surface_{}-{}_{}'.format(state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window))
+    evo_average_file = op.join(evoked_path, 'Grand_average', '{}-{}_{}-ave.fif'.format(state, key, name))
+    os.makedirs(op.dirname(gd_average_file), exist_ok=True)
+    os.makedirs(op.dirname(evo_average_file), exist_ok=True)
+    
+    evoked_all = []
+    fs_stc_all = []
+    if not subjects:
+        subjects = get_subjlist(task)
+    print(colored('Averaging '+('and morphing ' if do_morphing else '')+key+'_'+name+' for state '+state, 'cyan'))
+    
+    for s,sub in enumerate(tqdm(subjects)):
+        # Define files
+        stc_file = op.join(stc_path, sub, '{}_{}_*-{}_{}-{}-surface_{}-{}_{}{}*-lh.stc'.format(sub, state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window, ('-fsaverage' if not do_morphing else '')))
+        fs_file = op.join(stc_path, 'fsaverage', sub, '{}_{}-{}_{}-{}-surface_{}-{}_{}-{}_to_fs'.format(sub, state, key, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window, sub))
+        os.makedirs(op.dirname(fs_file), exist_ok=True)
         
-        # Compute inverse solution
-        if method is 'beamformer':
-            for k in keys:
-                data_cov = mne.read_cov(op.join(cov_path, '{}_{}_{}-{}_{}-data-cov.fif'.format(subject, state, '_'.join(block_group), k, name)))
-                filters = mne.beamformer.make_lcmv(mne.pick_channels_evoked(evoked[k], exclude=bad_chan).info, mne.pick_channels_forward(fwd_surf, exclude=bad_chan), mne.pick_channels_cov(data_cov, exclude=bad_chan), noise_cov=mne.pick_channels_cov(noise_cov, exclude=bad_chan), pick_ori='max-power', weight_norm='nai')
-                
-                # Compute SourceEstimate
-                stc_vol_file = op.join(stc_path, '{}_{}_{}-{}_{}-{}-surface_{}-{}_{}-{}'.format(subject, state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), surface, *window[k], method))
-                stc_vol = mne.beamformer.apply_lcmv(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), filters)
-                stc_vol.save(stc_vol_file)
+        # If the combined SourceEstimate already exists, just load it (if you do not wish to overwrite it)
+        if op.isfile(fs_file) and not overwrite:
+            fs_stc_all.append(mne.read_source_estimate(fs_file))
+            continue
         
-        else:
-            inv_vol = make_inverse_operator(mne.pick_channels_evoked(evoked[k0], exclude=bad_chan).info, mne.pick_channels_forward(fwd_vol, exclude=bad_chan), mne.pick_channels_cov(noise_cov, exclude=bad_chan), loose=1)
+        files = glob.glob(stc_file) # All SourceEstimates of this subject for this state
+        stc_all = []
+        nave_all = []
+        
+        for file in files:
+            if len(files) > 1: print(colored(op.basename(file[:-7]), 'yellow'))
+            stc = mne.read_source_estimate(file[:-7])
             
-            for k in keys:
-                # Compute SourceEstimate
-                stc_vol_file = op.join(stc_path, '{}_{}_{}-{}_{}-{}-volume_{}-{}_{}-{}-stc.h5'.format(subject, state, '_'.join(block_group), k, name, ('baseline_cov' if baseline_cov else 'empty_room_cov'), volume, *window[k], method))
-                stc_vol = apply_inverse(mne.pick_channels_evoked(evoked[k], exclude=bad_chan), inv_vol, method=method, pick_ori='vector')
-                stc_vol.save(stc_vol_file)
+            # Morph to fsaverage
+            if do_morphing:
+                stc_all.append(mne.morph_data(sub, 'fsaverage', stc, n_jobs=4))#, verbose=True))
+            else:
+                stc_all.append(stc.copy())
+            
+            # If there are several SourceEstimate for this state, combine them using the same weighting as mne.evoked.combine_evoked
+            if len(files) > 1:
+                blocks = file[file.index(state+'_'):file.index('-'+key+'_'+name)].split('_')[1:]
+                nave_blk = []
+                
+                # To weight, retrieve the number of events (nave) from the Evoked
+                evoked_list = [mne.Evoked(op.join(evoked_path, sub, '{}_{}_{}-{}-ave.fif'.format(sub, state, blk, name)), condition=key) for blk in blocks]
+                nave_blk.extend([evo.nave for evo in evoked_list])
+                evoked_all.append(mne.combine_evoked(evoked_list, 'nave'))
+                
+                # If there are several blocks corresponding to this single SourceEstimate, then the Evoked have already been combined.
+                # Thus, nave should be reset according to mne.evoked.combine_evoked:
+                if len(nave_blk) > 1:
+                    print(colored('Re-weighting blocks {}...'.format(blocks), 'yellow'))
+                    weights = np.array([n for n in nave_blk], float)
+                    weights /= weights.sum()
+                    nave = max(int(round(1. / sum( w ** 2 / n for w, n in zip(weights, nave_blk)))), 1)
+                else:
+                    nave = nave_blk[0]
+                
+                nave_all.append(nave)
+            else:
+                file = files[0]
+                blk = file[file.index(state+'_'):file.index('-'+key+'_'+name)].split('_')[1]
+                evoked_all.append(mne.Evoked(op.join(evoked_path, sub, '{}_{}_{}-{}-ave.fif'.format(sub, state, blk, name)), condition=key))
+        
+        stc = stc_all[0].copy()
+        if len(files) > 1:
+            # Weight and combine:
+            weights = np.array([n for n in nave_blk], float)
+            weights /= weights.sum()
+            stc.data = sum(w * s.data for w, s in zip(weights, stc_all))
+        
+        # Save this subject's morphed SourceEstimate, all blocks of this state combined
+        stc.save(fs_file)
+        fs_stc_all.append(stc.copy())
+    
+    # Grand average
+    evoked = mne.combine_evoked(evoked_all, 'nave')
+    fs_stc = fs_stc_all[0].copy()
+    data = [s.data for s in fs_stc_all]
+    fs_stc.data = np.mean(data, axis=0)
+    
+    mne.write_evokeds(evo_average_file, evoked)
+    fs_stc.save(gd_average_file)
+    print(colored(gd_average_file, 'green'))
+    mne.set_log_level(verb)
 
 
-task='SMEG'; subject='063'; state='RS'; block='01'
-raw = load_preproc(task, subject, state, block, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
-epochs = mne.Epochs(raw, make_fixed_length_events(raw, int(block), duration=2.5, first_samp=False), tmin=0, tmax=5, baseline=None, preload=True)
-cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
-noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
-trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*01*-trans.fif'))[0]
-bem_spacing='ico4'
-bem_sol = mne.read_bem_solution(op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', '{}_{}_bem_solution.fif'.format(subject, (bem_spacing if bem_spacing else 'full'))))
-src_surf = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_surface-src.fif'.format(subject, surface)))
-fwd_surf = mne.make_forward_solution(epochs.info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=5, n_jobs=4)
-csd = mne.time_frequency.csd_multitaper(epochs, 7, 10, adaptive=True, n_jobs=4)
-filters = mne.beamformer.make_dics(epochs.info, fwd_surf, csd)
-stc, freqs = mne.beamformer.apply_dics_csd(csd, filters)
-task='SMEG'; subject='063'; state='RS'; block='01'
-raw = load_preproc(task, subject, state, block, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
-epochs = mne.Epochs(raw, make_fixed_length_events(raw, int(block), duration=2.5, first_samp=False), tmin=0, tmax=5, baseline=None, preload=True)
-cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
-noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
-trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*01*-trans.fif'))[0]
-bem_spacing='ico4'
-bem_sol = mne.read_bem_solution(op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', '{}_{}_bem_solution.fif'.format(subject, (bem_spacing if bem_spacing else 'full'))))
-surface='ico4'
-src_surf = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_surface-src.fif'.format(subject, surface)))
-fwd_surf = mne.make_forward_solution(epochs.info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=5, n_jobs=4)
-csd = mne.time_frequency.csd_multitaper(epochs, 7, 10, adaptive=True, n_jobs=4)
-filters = mne.beamformer.make_dics(epochs.info, fwd_surf, csd)
-stc, freqs = mne.beamformer.apply_dics_csd(csd, filters)
-morph = mne.compute_source_morph(stc)
-stc_fs = morph.apply(stc)
+#task='SMEG'; subject='063'; state='RS'; block='01'
+#raw = load_preproc(task, subject, state, block, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
+#epochs = mne.Epochs(raw, make_fixed_length_events(raw, int(block), duration=2.5, first_samp=False), tmin=0, tmax=5, baseline=None, preload=True)
+#cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
+#noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
+#trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*01*-trans.fif'))[0]
+#bem_spacing='ico4'
+#bem_sol = mne.read_bem_solution(op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', '{}_{}_bem_solution.fif'.format(subject, (bem_spacing if bem_spacing else 'full'))))
+#src_surf = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_surface-src.fif'.format(subject, surface)))
+#fwd_surf = mne.make_forward_solution(epochs.info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=5, n_jobs=4)
+#csd = mne.time_frequency.csd_multitaper(epochs, 7, 10, adaptive=True, n_jobs=4)
+#filters = mne.beamformer.make_dics(epochs.info, fwd_surf, csd)
+#stc, freqs = mne.beamformer.apply_dics_csd(csd, filters)
+#task='SMEG'; subject='063'; state='RS'; block='01'
+#raw = load_preproc(task, subject, state, block, exclude_ecg=True, ICA_kwargs={'method': 'fastica'})
+#epochs = mne.Epochs(raw, make_fixed_length_events(raw, int(block), duration=2.5, first_samp=False), tmin=0, tmax=5, baseline=None, preload=True)
+#cov_path = op.join(Analysis_path, task, 'meg', 'Covariance', subject)
+#noise_cov = mne.read_cov(op.join(cov_path, 'empty_room-cov.fif'))
+#trans_file = glob.glob(op.join(Analysis_path, task, 'meg', 'Coregistration', subject, '*01*-trans.fif'))[0]
+#bem_spacing='ico4'
+#bem_sol = mne.read_bem_solution(op.join(os.environ['SUBJECTS_DIR'], subject, 'bem', '{}_{}_bem_solution.fif'.format(subject, (bem_spacing if bem_spacing else 'full'))))
+#surface='ico4'
+#src_surf = mne.read_source_spaces(op.join(os.environ['SUBJECTS_DIR'], subject, 'src', '{}_{}_surface-src.fif'.format(subject, surface)))
+#fwd_surf = mne.make_forward_solution(epochs.info, trans=trans_file, src=src_surf, bem=bem_sol, meg=True, eeg=False, mindist=5, n_jobs=4)
+#csd = mne.time_frequency.csd_multitaper(epochs, 7, 10, adaptive=True, n_jobs=4)
+#filters = mne.beamformer.make_dics(epochs.info, fwd_surf, csd)
+#stc, freqs = mne.beamformer.apply_dics_csd(csd, filters)
+#morph = mne.compute_source_morph(stc)
+#stc_fs = morph.apply(stc)

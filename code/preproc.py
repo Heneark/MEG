@@ -681,7 +681,7 @@ def R_T_ECG_events(task, subject, state, block, raw=None, custom_args=dict(), R_
     else:
         epo = create_ecg_epochs(ecg, reject_by_annotation=False, event_id=R_id)
     
-    # Save R times
+    # Save R times => Re-write to use full dataset (after meditation offset)
     R_times_file = op.join(Analysis_path, 'MEG', 'meta', 'ECG_R_times.tsv')
     if not op.isfile(R_times_file):
         with open(R_times_file, 'w') as fid:
